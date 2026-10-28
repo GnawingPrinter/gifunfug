@@ -163,16 +163,109 @@
                 </div>
               </div>
 
-              <!-- Background Color Selection -->
-              <div>
-                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                  Background Color
-                </label>
-                <div class="flex items-center space-x-2 bg-slate-950 p-1.5 border border-slate-800 rounded-2xl h-[46px]">
-                  <input type="color" id="bgColor" value="#000000" onchange="updateBgColor(this.value)" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border-0">
-                  <span id="bgColorHex" class="text-xs font-mono text-slate-300">#000000</span>
+              <!-- Viewport mode filler column space -->
+              <div id="sizingSecondaryInfo" class="flex flex-col justify-end">
+                <div class="text-[11px] text-slate-500 bg-slate-950/50 p-2.5 rounded-2xl border border-slate-800/80 h-[46px] flex items-center justify-center text-center">
+                  <span>Empty URL inputs produce solid color tiles.</span>
                 </div>
               </div>
+            </div>
+
+            <!-- Background Color Mode Settings -->
+            <div class="space-y-3 pt-2 border-t border-slate-800/60">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Background Mode
+              </label>
+
+              <!-- Mode Tabs -->
+              <div class="grid grid-cols-3 gap-1 p-1 bg-slate-950 border border-slate-800 rounded-2xl">
+                <button 
+                  type="button" 
+                  id="bgTabStatic" 
+                  onclick="setBgMode('static')" 
+                  class="py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-white bg-indigo-600 shadow-sm"
+                >
+                  Static
+                </button>
+                <button 
+                  type="button" 
+                  id="bgTabRainbow" 
+                  onclick="setBgMode('rainbow')" 
+                  class="py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-slate-400 hover:text-white"
+                >
+                  Rainbow Fade
+                </button>
+                <button 
+                  type="button" 
+                  id="bgTabList" 
+                  onclick="setBgMode('list')" 
+                  class="py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-slate-400 hover:text-white"
+                >
+                  Color List (Tap)
+                </button>
+              </div>
+
+              <!-- Mode 1: Static Color Picker -->
+              <div id="bgConfigStatic" class="flex items-center space-x-3 bg-slate-950 p-2 border border-slate-800 rounded-2xl">
+                <input type="color" id="bgColor" value="#000000" onchange="updateBgColor(this.value)" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border-0">
+                <span id="bgColorHex" class="text-xs font-mono text-slate-300">#000000</span>
+              </div>
+
+              <!-- Mode 2: Rainbow Fade Settings -->
+              <div id="bgConfigRainbow" class="hidden space-y-2 bg-slate-950 p-3 border border-slate-800 rounded-2xl">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs text-slate-400">Cycle Speed:</span>
+                  <span id="rainbowSpeedVal" class="text-xs font-mono text-indigo-400">5s</span>
+                </div>
+                <input 
+                  type="range" 
+                  id="rainbowSpeedSlider" 
+                  min="1" 
+                  max="20" 
+                  step="0.5" 
+                  value="5" 
+                  oninput="updateRainbowSpeed(this.value)" 
+                  class="w-full accent-indigo-500 cursor-pointer"
+                >
+              </div>
+
+              <!-- Mode 3: Color List & Tap Tempo Controls -->
+              <div id="bgConfigList" class="hidden space-y-3 bg-slate-950 p-3 border border-slate-800 rounded-2xl">
+                <div class="flex items-center justify-between">
+                  <label class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Palette Colors</label>
+                  <button 
+                    type="button" 
+                    onclick="addPaletteColor()" 
+                    class="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-semibold text-indigo-400 hover:text-white bg-indigo-500/10 hover:bg-indigo-600 rounded-lg transition"
+                  >
+                    <i data-lucide="plus" class="w-3 h-3"></i>
+                    <span>Add Color</span>
+                  </button>
+                </div>
+
+                <!-- Palette Colors List -->
+                <div id="paletteListContainer" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1">
+                  <!-- Rendered via JS -->
+                </div>
+
+                <!-- Interval & DJ Tap Button Controls -->
+                <div class="flex items-center space-x-3 pt-1 border-t border-slate-800/60">
+                  <div class="flex-1">
+                    <span class="block text-[10px] text-slate-400 uppercase tracking-wider">Interval</span>
+                    <span id="intervalDisplay" class="text-xs font-mono text-indigo-400">1.00s (60 BPM)</span>
+                  </div>
+                  <!-- DJ Style Tap Tempo Button -->
+                  <button 
+                    type="button" 
+                    id="tapTempoBtn"
+                    onclick="handleTapTempo(event)" 
+                    class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition"
+                  >
+                    TAP TEMPO
+                  </button>
+                </div>
+              </div>
+
             </div>
 
           </div>
@@ -221,7 +314,7 @@
         class="controls-overlay absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md text-slate-300 border border-slate-700/50 px-4 py-2 rounded-full text-xs font-medium shadow-lg pointer-events-none flex items-center space-x-2 z-50"
       >
         <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400"></i>
-        <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-white font-mono text-[10px]">ESC</kbd> or double-click anywhere to exit</span>
+        <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-white font-mono text-[10px]">ESC</kbd> or double-click to exit • Tap anywhere to set BPM interval</span>
       </div>
     </div>
 
@@ -234,14 +327,29 @@
       let idleTimer = null;
       const IDLE_TIMEOUT = 3000;
 
+      // Background Modes: 'static', 'rainbow', 'list'
+      let bgMode = 'static';
+      let staticBgColor = "#000000";
+      let rainbowSpeedSec = 5;
+      
+      // Color list & tap tempo state
+      let colorPalette = ["#ff0055", "#00e5ff", "#7600ff", "#ffb700", "#00ff66"];
+      let paletteIndex = 0;
+      let colorIntervalMs = 1000; // 1 second default
+      let bgIntervalTimer = null;
+      let rainbowAnimationId = null;
+      let tapTimestamps = [];
+
       // GIF URL List state
       let gifUrls = ["https://media.tenor.com/390VTlJCoWYAAAAC/tenor.gif"];
 
       // Initialize Lucide Icons & Initial View
       window.onload = () => {
         renderGifInputs();
+        renderPaletteInputs();
         lucide.createIcons();
         updatePreview();
+        startBgModeLoop();
       };
 
       // Dynamic Input List Management
@@ -258,14 +366,14 @@
 
           const input = document.createElement('input');
           input.type = "url";
-          input.placeholder = "https://media.giphy.com/media/.../giphy.gif";
-          input.required = true;
+          input.placeholder = "Enter GIF URL (or leave blank for solid tile)";
           input.value = url;
           input.className = "w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl py-2 pl-3 pr-9 text-slate-100 placeholder-slate-500 transition-all outline-none text-xs";
           
           input.addEventListener('input', (e) => {
             gifUrls[index] = e.target.value.trim();
             updatePreview();
+            renderFullscreenGridIfActive();
           });
 
           const pasteBtn = document.createElement('button');
@@ -282,7 +390,7 @@
           if (gifUrls.length > 1) {
             const removeBtn = document.createElement('button');
             removeBtn.type = "button";
-            removeBtn.title = "Remove GIF";
+            removeBtn.title = "Remove GIF slot";
             removeBtn.className = "p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-xl transition";
             removeBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i>`;
             removeBtn.onclick = () => removeGifInput(index);
@@ -298,6 +406,8 @@
       function addGifInput() {
         gifUrls.push('');
         renderGifInputs();
+        updatePreview();
+        renderFullscreenGridIfActive();
       }
 
       function removeGifInput(index) {
@@ -305,6 +415,7 @@
           gifUrls.splice(index, 1);
           renderGifInputs();
           updatePreview();
+          renderFullscreenGridIfActive();
         }
       }
 
@@ -315,9 +426,156 @@
             gifUrls[index] = text.trim();
             renderGifInputs();
             updatePreview();
+            renderFullscreenGridIfActive();
           }
         } catch (err) {
           console.warn('Clipboard read error:', err);
+        }
+      }
+
+      // Background Modes logic
+      function setBgMode(mode) {
+        bgMode = mode;
+        const tabStatic = document.getElementById('bgTabStatic');
+        const tabRainbow = document.getElementById('bgTabRainbow');
+        const tabList = document.getElementById('bgTabList');
+        const cfgStatic = document.getElementById('bgConfigStatic');
+        const cfgRainbow = document.getElementById('bgConfigRainbow');
+        const cfgList = document.getElementById('bgConfigList');
+
+        const activeClass = "py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-white bg-indigo-600 shadow-sm";
+        const inactiveClass = "py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-slate-400 hover:text-white";
+
+        tabStatic.className = mode === 'static' ? activeClass : inactiveClass;
+        tabRainbow.className = mode === 'rainbow' ? activeClass : inactiveClass;
+        tabList.className = mode === 'list' ? activeClass : inactiveClass;
+
+        cfgStatic.classList.toggle('hidden', mode !== 'static');
+        cfgRainbow.classList.toggle('hidden', mode !== 'rainbow');
+        cfgList.classList.toggle('hidden', mode !== 'list');
+
+        startBgModeLoop();
+      }
+
+      function updateRainbowSpeed(val) {
+        rainbowSpeedSec = parseFloat(val);
+        document.getElementById('rainbowSpeedVal').textContent = `${val}s`;
+      }
+
+      function renderPaletteInputs() {
+        const container = document.getElementById('paletteListContainer');
+        container.innerHTML = '';
+
+        colorPalette.forEach((color, index) => {
+          const item = document.createElement('div');
+          item.className = "flex items-center space-x-1 bg-slate-900 border border-slate-800 p-1 rounded-xl";
+
+          const input = document.createElement('input');
+          input.type = "color";
+          input.value = color;
+          input.className = "w-6 h-6 rounded-lg bg-transparent cursor-pointer border-0";
+          input.onchange = (e) => {
+            colorPalette[index] = e.target.value;
+            applyActiveBgColor(colorPalette[paletteIndex % colorPalette.length]);
+          };
+
+          item.appendChild(input);
+
+          if (colorPalette.length > 1) {
+            const delBtn = document.createElement('button');
+            delBtn.type = "button";
+            delBtn.className = "text-slate-500 hover:text-rose-400 p-0.5 rounded transition";
+            delBtn.innerHTML = `<i data-lucide="x" class="w-3 h-3"></i>`;
+            delBtn.onclick = () => {
+              colorPalette.splice(index, 1);
+              renderPaletteInputs();
+            };
+            item.appendChild(delBtn);
+          }
+
+          container.appendChild(item);
+        });
+
+        lucide.createIcons();
+      }
+
+      function addPaletteColor() {
+        const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        colorPalette.push(randomColor);
+        renderPaletteInputs();
+      }
+
+      // Tap Tempo Handler (DJ / Lighting Controller style)
+      function handleTapTempo(e) {
+        if (e) e.stopPropagation();
+        const now = Date.now();
+        tapTimestamps.push(now);
+
+        // Keep only taps within the last 3 seconds
+        tapTimestamps = tapTimestamps.filter(t => now - t < 3000);
+
+        if (tapTimestamps.length >= 2) {
+          let intervals = [];
+          for (let i = 1; i < tapTimestamps.length; i++) {
+            intervals.push(tapTimestamps[i] - tapTimestamps[i - 1]);
+          }
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          colorIntervalMs = Math.max(100, Math.min(5000, avgInterval));
+          updateIntervalDisplay();
+          startBgModeLoop();
+        }
+
+        // Advance step immediately on tap
+        if (bgMode === 'list' && colorPalette.length > 0) {
+          paletteIndex = (paletteIndex + 1) % colorPalette.length;
+          applyActiveBgColor(colorPalette[paletteIndex]);
+        }
+      }
+
+      function updateIntervalDisplay() {
+        const seconds = (colorIntervalMs / 1000).toFixed(2);
+        const bpm = Math.round(60000 / colorIntervalMs);
+        document.getElementById('intervalDisplay').textContent = `${seconds}s (${bpm} BPM)`;
+      }
+
+      function applyActiveBgColor(color) {
+        const previewContainer = document.getElementById('previewContainer');
+        const fullscreenContainer = document.getElementById('fullscreenContainer');
+
+        if (previewContainer) previewContainer.style.backgroundColor = color;
+        if (fullscreenContainer) fullscreenContainer.style.backgroundColor = color;
+
+        // Apply to empty tile backgrounds
+        const tiles = document.querySelectorAll('.gif-tile-item');
+        tiles.forEach(tile => tile.style.backgroundColor = color);
+      }
+
+      function startBgModeLoop() {
+        clearInterval(bgIntervalTimer);
+        cancelAnimationFrame(rainbowAnimationId);
+
+        if (bgMode === 'static') {
+          applyActiveBgColor(staticBgColor);
+        } else if (bgMode === 'rainbow') {
+          let startTime = performance.now();
+          function animateRainbow(now) {
+            let elapsed = (now - startTime) / 1000;
+            let hue = (elapsed / rainbowSpeedSec * 360) % 360;
+            let hslColor = `hsl(${hue}, 100%, 50%)`;
+            applyActiveBgColor(hslColor);
+            rainbowAnimationId = requestAnimationFrame(animateRainbow);
+          }
+          rainbowAnimationId = requestAnimationFrame(animateRainbow);
+        } else if (bgMode === 'list') {
+          if (colorPalette.length > 0) {
+            applyActiveBgColor(colorPalette[paletteIndex % colorPalette.length]);
+          }
+          bgIntervalTimer = setInterval(() => {
+            if (colorPalette.length > 0) {
+              paletteIndex = (paletteIndex + 1) % colorPalette.length;
+              applyActiveBgColor(colorPalette[paletteIndex]);
+            }
+          }, colorIntervalMs);
         }
       }
 
@@ -350,7 +608,6 @@
         }
       }
 
-      // Slider input handler
       function handleSliderInput(val) {
         if (sizingMode === 'pixels') {
           pixelSize = parseInt(val, 10);
@@ -360,7 +617,6 @@
         updateDisplayValue(val);
       }
 
-      // Calculate the active tile size in pixels
       function getActiveTileSize() {
         if (sizingMode === 'pixels') {
           return pixelSize;
@@ -369,7 +625,6 @@
         }
       }
 
-      // Helper to update visual display text
       function updateDisplayValue(val) {
         computedTileSize = getActiveTileSize();
         if (sizingMode === 'pixels') {
@@ -378,113 +633,103 @@
           document.getElementById('tileSizeVal').textContent = `${val} tiles (${Math.round(computedTileSize)}px each)`;
         }
         updatePreview();
+        renderFullscreenGridIfActive();
       }
 
-      // Update compact live preview box
+      // Sync custom static background color
+      function updateBgColor(color) {
+        staticBgColor = color;
+        document.getElementById('bgColorHex').textContent = color;
+        if (bgMode === 'static') applyActiveBgColor(color);
+      }
+
+      // Update preview grid (Allow empty inputs to show solid background blocks)
       function updatePreview() {
         const previewBg = document.getElementById('previewTileBg');
-        const previewContainer = document.getElementById('previewContainer');
-        const bgColor = document.getElementById('bgColor').value;
-
-        if (previewContainer) {
-          previewContainer.style.backgroundColor = bgColor;
-        }
-
         if (!previewBg) return;
 
         previewBg.innerHTML = '';
-        const validUrls = gifUrls.filter(u => u.trim() !== '');
-        if (validUrls.length === 0) return;
+        if (gifUrls.length === 0) return;
 
-        // Preview tile size calculation
         let previewTileWidth;
         if (sizingMode === 'pixels') {
           previewTileWidth = Math.max(25, pixelSize * 0.25);
         } else {
-          const previewContainerWidth = previewContainer?.offsetWidth || 500;
+          const previewContainerWidth = document.getElementById('previewContainer')?.offsetWidth || 500;
           previewTileWidth = Math.max(15, previewContainerWidth / repeatCount);
         }
 
-        // Render mini grid for preview (up to 24 tiles max for performance)
         for (let i = 0; i < 24; i++) {
-          const url = validUrls[i % validUrls.length];
+          const url = gifUrls[i % gifUrls.length];
           const tile = document.createElement('div');
           tile.className = "gif-tile-item";
           tile.style.width = `${previewTileWidth}px`;
-          tile.style.backgroundColor = bgColor;
-          
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = "";
-          
-          tile.appendChild(img);
+
+          if (url && url.trim() !== '') {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = "";
+            tile.appendChild(img);
+          }
+
           previewBg.appendChild(tile);
         }
       }
 
-      // Render Fullscreen Grid Items
+      // Render Fullscreen Grid Items (Renders empty tile slots as solid color blocks)
       function renderFullscreenGrid() {
         const gridContainer = document.getElementById('gridDisplayContainer');
-        const bgColor = document.getElementById('bgColor').value;
         gridContainer.innerHTML = '';
 
-        const validUrls = gifUrls.filter(u => u.trim() !== '');
-        if (validUrls.length === 0) return;
+        if (gifUrls.length === 0) return;
 
         computedTileSize = getActiveTileSize();
         
-        // Estimate total items needed to fill viewport screen height with buffer
         const rowsNeeded = Math.ceil(window.innerHeight / (computedTileSize * 0.75)) + 4;
         const colsPerRow = sizingMode === 'repeats' ? repeatCount : Math.ceil(window.innerWidth / computedTileSize) + 1;
         const totalTiles = rowsNeeded * colsPerRow;
 
         for (let i = 0; i < totalTiles; i++) {
-          const url = validUrls[i % validUrls.length];
+          const url = gifUrls[i % gifUrls.length];
           const tile = document.createElement('div');
           tile.className = "gif-tile-item";
           tile.style.width = `${computedTileSize}px`;
-          tile.style.backgroundColor = bgColor;
 
-          const img = document.createElement('img');
-          img.src = url;
-          img.alt = "";
+          if (url && url.trim() !== '') {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = "";
+            tile.appendChild(img);
+          }
 
-          tile.appendChild(img);
           gridContainer.appendChild(tile);
         }
       }
 
-      // Recalculate dynamic repeat size when window resizes
+      function renderFullscreenGridIfActive() {
+        const container = document.getElementById('fullscreenContainer');
+        if (!container.classList.contains('hidden')) {
+          renderFullscreenGrid();
+        }
+      }
+
       window.addEventListener('resize', () => {
         if (sizingMode === 'repeats') {
           updateDisplayValue(repeatCount);
         } else {
           updatePreview();
         }
-
-        const container = document.getElementById('fullscreenContainer');
-        if (!container.classList.contains('hidden')) {
-          renderFullscreenGrid();
-        }
+        renderFullscreenGridIfActive();
       });
 
-      // Sync custom background color
-      function updateBgColor(color) {
-        document.getElementById('bgColorHex').textContent = color;
-        document.getElementById('fullscreenContainer').style.backgroundColor = color;
-        updatePreview();
-      }
-
-      // Launch Fullscreen mode with requestFullscreen API
+      // Launch Fullscreen mode
       async function launchFullscreen() {
-        const validUrls = gifUrls.filter(u => u.trim() !== '');
-        if (validUrls.length === 0) return;
+        if (gifUrls.length === 0) return;
 
         const container = document.getElementById('fullscreenContainer');
         renderFullscreenGrid();
         container.classList.remove('hidden');
 
-        // Request native Fullscreen if supported
         try {
           if (container.requestFullscreen) {
             await container.requestFullscreen();
@@ -543,9 +788,22 @@
         }
       }
 
-      document.getElementById('fullscreenContainer').addEventListener('dblclick', (e) => {
-        if (!e.target.closest('#controlsOverlay')) {
+      // Double Click / Tap Tempo in Fullscreen Mode
+      let lastFullscreenClick = 0;
+      document.getElementById('fullscreenContainer').addEventListener('click', (e) => {
+        if (e.target.closest('#controlsOverlay')) return;
+        
+        const now = Date.now();
+        // Double click detection to exit
+        if (now - lastFullscreenClick < 300) {
           exitFullscreen();
+          return;
+        }
+        lastFullscreenClick = now;
+
+        // Single click triggers tap tempo if in 'list' mode or updates tap state
+        if (bgMode === 'list') {
+          handleTapTempo(null);
         }
       });
 
