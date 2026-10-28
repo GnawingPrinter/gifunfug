@@ -80,35 +80,65 @@
           </div>
 
           <!-- Tile Size & Background Settings -->
-          <div class="grid grid-cols-2 gap-3">
+          <div class="space-y-4">
+            
+            <!-- Size Mode Toggle Tabs -->
             <div>
               <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Tile Size: <span id="tileSizeVal" class="text-indigo-400 font-mono">200px</span>
+                Sizing Mode
               </label>
-              <div class="flex items-center bg-slate-950 px-4 py-2.5 border border-slate-800 rounded-2xl h-[46px]">
-                <input 
-                  type="range" 
-                  id="tileSize" 
-                  min="50" 
-                  max="600" 
-                  step="10" 
-                  value="200" 
-                  oninput="updateTileSize(this.value)"
-                  class="w-full accent-indigo-500 cursor-pointer"
+              <div class="grid grid-cols-2 gap-1 p-1 bg-slate-950 border border-slate-800 rounded-2xl">
+                <button 
+                  type="button" 
+                  id="modePixelsBtn"
+                  onclick="setSizingMode('pixels')" 
+                  class="py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-white bg-indigo-600 shadow-sm"
                 >
+                  Fixed Pixels
+                </button>
+                <button 
+                  type="button" 
+                  id="modeRepeatsBtn"
+                  onclick="setSizingMode('repeats')" 
+                  class="py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-slate-400 hover:text-white"
+                >
+                  Horizontal Repeats
+                </button>
               </div>
             </div>
 
-            <!-- Background Color Selection -->
-            <div>
-              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Background Color
-              </label>
-              <div class="flex items-center space-x-2 bg-slate-950 p-1.5 border border-slate-800 rounded-2xl h-[46px]">
-                <input type="color" id="bgColor" value="#000000" onchange="updateBgColor(this.value)" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border-0">
-                <span id="bgColorHex" class="text-xs font-mono text-slate-300">#000000</span>
+            <div class="grid grid-cols-2 gap-3">
+              <!-- Dynamic Slider Container -->
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  <span id="sliderLabel">Tile Size:</span> <span id="tileSizeVal" class="text-indigo-400 font-mono">200px</span>
+                </label>
+                <div class="flex items-center bg-slate-950 px-4 py-2.5 border border-slate-800 rounded-2xl h-[46px]">
+                  <input 
+                    type="range" 
+                    id="sizeSlider" 
+                    min="50" 
+                    max="600" 
+                    step="10" 
+                    value="200" 
+                    oninput="handleSliderInput(this.value)"
+                    class="w-full accent-indigo-500 cursor-pointer"
+                  >
+                </div>
+              </div>
+
+              <!-- Background Color Selection -->
+              <div>
+                <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                  Background Color
+                </label>
+                <div class="flex items-center space-x-2 bg-slate-950 p-1.5 border border-slate-800 rounded-2xl h-[46px]">
+                  <input type="color" id="bgColor" value="#000000" onchange="updateBgColor(this.value)" class="w-8 h-8 rounded-xl bg-transparent cursor-pointer border-0">
+                  <span id="bgColorHex" class="text-xs font-mono text-slate-300">#000000</span>
+                </div>
               </div>
             </div>
+
           </div>
 
           <!-- Launch Button -->
@@ -161,7 +191,10 @@
 
     <script>
       // State variables
-      let tileSize = 200;
+      let sizingMode = 'pixels'; // 'pixels' or 'repeats'
+      let pixelSize = 200;
+      let repeatCount = 5;
+      let computedTileSize = 200;
       let idleTimer = null;
       const IDLE_TIMEOUT = 3000; // 3 seconds idle hides HUD controls
 
@@ -170,15 +203,76 @@
         lucide.createIcons();
       };
 
-      // Helper to update visual tile size slider value
-      function updateTileSize(val) {
-        tileSize = val;
-        document.getElementById('tileSizeVal').textContent = `${val}px`;
-        const tiledBg = document.getElementById('tiledGifBg');
-        if (tiledBg) {
-          tiledBg.style.backgroundSize = `${val}px auto`;
+      // Toggle sizing mode between Fixed Pixels and Horizontal Repeats
+      function setSizingMode(mode) {
+        sizingMode = mode;
+        const pixelsBtn = document.getElementById('modePixelsBtn');
+        const repeatsBtn = document.getElementById('modeRepeatsBtn');
+        const slider = document.getElementById('sizeSlider');
+        const label = document.getElementById('sliderLabel');
+
+        if (mode === 'pixels') {
+          pixelsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-white bg-indigo-600 shadow-sm";
+          repeatsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-slate-400 hover:text-white";
+          label.textContent = "Tile Size:";
+          slider.min = "50";
+          slider.max = "600";
+          slider.step = "10";
+          slider.value = pixelSize;
+          updateDisplayValue(pixelSize);
+        } else {
+          repeatsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-white bg-indigo-600 shadow-sm";
+          pixelsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-slate-400 hover:text-white";
+          label.textContent = "Horizontal Repeats:";
+          slider.min = "1";
+          slider.max = "30";
+          slider.step = "1";
+          slider.value = repeatCount;
+          updateDisplayValue(repeatCount);
         }
       }
+
+      // Slider input handler
+      function handleSliderInput(val) {
+        if (sizingMode === 'pixels') {
+          pixelSize = parseInt(val, 10);
+        } else {
+          repeatCount = parseInt(val, 10);
+        }
+        updateDisplayValue(val);
+      }
+
+      // Calculate the active tile size in pixels
+      function getActiveTileSize() {
+        if (sizingMode === 'pixels') {
+          return pixelSize;
+        } else {
+          // Calculate width needed to fit exactly N repeats across the viewport width
+          return window.innerWidth / repeatCount;
+        }
+      }
+
+      // Helper to update visual display text & actual background size
+      function updateDisplayValue(val) {
+        computedTileSize = getActiveTileSize();
+        if (sizingMode === 'pixels') {
+          document.getElementById('tileSizeVal').textContent = `${val}px`;
+        } else {
+          document.getElementById('tileSizeVal').textContent = `${val} tiles (${Math.round(computedTileSize)}px each)`;
+        }
+
+        const tiledBg = document.getElementById('tiledGifBg');
+        if (tiledBg) {
+          tiledBg.style.backgroundSize = `${computedTileSize}px auto`;
+        }
+      }
+
+      // Recalculate dynamic repeat size when window resizes
+      window.addEventListener('resize', () => {
+        if (sizingMode === 'repeats') {
+          updateDisplayValue(repeatCount);
+        }
+      });
 
       // Sync custom background color
       function updateBgColor(color) {
@@ -209,9 +303,12 @@
         const container = document.getElementById('fullscreenContainer');
         const tiledBg = document.getElementById('tiledGifBg');
 
+        // Compute current tile size before displaying
+        computedTileSize = getActiveTileSize();
+
         // Set repeating tiled background image & size
         tiledBg.style.backgroundImage = `url("${urlInput}")`;
-        tiledBg.style.backgroundSize = `${tileSize}px auto`;
+        tiledBg.style.backgroundSize = `${computedTileSize}px auto`;
 
         container.classList.remove('hidden');
 
@@ -227,6 +324,12 @@
         } catch (e) {
           console.warn('Native Fullscreen denied or unsupported. Proceeding with full viewport fallback.', e);
         }
+
+        // Recalculate tile size after entering fullscreen since innerWidth might change
+        setTimeout(() => {
+          computedTileSize = getActiveTileSize();
+          tiledBg.style.backgroundSize = `${computedTileSize}px auto`;
+        }, 100);
 
         // Track cursor activity for hiding HUD overlay
         startIdleListener();
