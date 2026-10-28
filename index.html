@@ -1,4 +1,12 @@
-<style>
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tiled GIF Player</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
       /* Auto hide controls overlay when idle in fullscreen */
       .controls-overlay {
         transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
@@ -234,8 +242,8 @@
         root.omggif = { GifReader: GifReader };
       })(typeof window !== 'undefined' ? window : this);
     </script>
-    <!-- Lucide Icons Library with Safe Onload Callback -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" onload="if(window.lucide) window.lucide.createIcons()"></script>
+    <!-- Lucide Icons Library (cdnjs fallback to avoid unpkg source map network issues) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   </head>
   <body class="h-full flex flex-col justify-between overflow-x-hidden bg-slate-950 text-slate-100">
 
