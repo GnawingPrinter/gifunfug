@@ -66,7 +66,7 @@
                 placeholder="https://media.giphy.com/media/.../giphy.gif" 
                 required
                 class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-2xl py-3.5 pl-4 pr-11 text-slate-100 placeholder-slate-500 transition-all outline-none text-sm"
-                value="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWRzeTNsMzJmMTNvbTRjMHFpZnF5eTFvMndsdDZvOG8xZjRhNnp6NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3vR1v8ySmdwM0xxe/giphy.gif"
+                value="https://media.tenor.com/71jY5GgLd18AAAAC/gandalf-yes.gif"
               >
               <button 
                 type="button" 
@@ -120,43 +120,6 @@
             <span>Launch Tiled Fullscreen View</span>
           </button>
         </form>
-
-        <!-- Preset GIF Samples -->
-        <div class="mt-8 pt-6 border-t border-slate-800">
-          <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">
-            Sample GIFs
-          </label>
-          <div class="grid grid-cols-4 gap-2">
-            <button 
-              type="button"
-              onclick="selectPreset('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWRzeTNsMzJmMTNvbTRjMHFpZnF5eTFvMndsdDZvOG8xZjRhNnp6NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3vR1v8ySmdwM0xxe/giphy.gif')"
-              class="aspect-video rounded-xl overflow-hidden border border-slate-800 hover:border-indigo-500 transition relative group"
-            >
-              <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExcWRzeTNsMzJmMTNvbTRjMHFpZnF5eTFvMndsdDZvOG8xZjRhNnp6NiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/l3vR1v8ySmdwM0xxe/giphy.gif" alt="Neon Grid" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-            </button>
-            <button 
-              type="button"
-              onclick="selectPreset('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWx2bXdrZXZvb3kyNWxscXhscThwNmNmN25vaDRmY2hxcGxsajltaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7vDYp5c4qj68i76g/giphy.gif')"
-              class="aspect-video rounded-xl overflow-hidden border border-slate-800 hover:border-indigo-500 transition relative group"
-            >
-              <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExdWx2bXdrZXZvb3kyNWxscXhscThwNmNmN25vaDRmY2hxcGxsajltaSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3o7vDYp5c4qj68i76g/giphy.gif" alt="Synthwave Drive" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-            </button>
-            <button 
-              type="button"
-              onclick="selectPreset('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG04bjM0eXo1bGFxYnpzYnVxeHVvOHllc2pwaHQ0dGJ2MnRwZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xT9IgzoKnwFNmISR8I/giphy.gif')"
-              class="aspect-video rounded-xl overflow-hidden border border-slate-800 hover:border-indigo-500 transition relative group"
-            >
-              <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExeGJ3eG04bjM0eXo1bGFxYnpzYnVxeHVvOHllc2pwaHQ0dGJ2MnRwZiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xT9IgzoKnwFNmISR8I/giphy.gif" alt="Pixel Art Rain" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-            </button>
-            <button 
-              type="button"
-              onclick="selectPreset('https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHcydWZtb2g2ZmptOGt5bTBwN3I2bzFmYXpxdnU4dmQxM2U0am10eCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/134VvmzdLui9hm/giphy.gif')"
-              class="aspect-video rounded-xl overflow-hidden border border-slate-800 hover:border-indigo-500 transition relative group"
-            >
-              <img src="https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExOHcydWZtb2g2ZmptOGt5bTBwN3I2bzFmYXpxdnU4dmQxM2U0am10eCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/134VvmzdLui9hm/giphy.gif" alt="Galaxy Loop" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-            </button>
-          </div>
-        </div>
 
       </div>
     </main>
@@ -221,11 +184,6 @@
       function updateBgColor(color) {
         document.getElementById('bgColorHex').textContent = color;
         document.getElementById('fullscreenContainer').style.backgroundColor = color;
-      }
-
-      // Quick select preset GIF
-      function selectPreset(url) {
-        document.getElementById('gifUrl').value = url;
       }
 
       // Paste text from user clipboard safely
