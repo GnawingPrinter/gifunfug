@@ -17,12 +17,31 @@
         cursor: none;
       }
       
-      /* Tiling Background Container */
-      .tiled-gif-bg {
+      /* Multi-GIF Grid Container */
+      #gridDisplayContainer {
+        display: flex;
+        flex-wrap: wrap;
+        align-content: flex-start;
+        justify-content: flex-start;
         width: 100%;
+        min-h-screen: 100vh;
         height: 100%;
-        background-repeat: repeat;
-        background-position: center center;
+        overflow: hidden;
+      }
+
+      .gif-tile-item {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        overflow: hidden;
+        box-sizing: border-box;
+      }
+
+      .gif-tile-item img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
       }
     </style>
   </head>
@@ -49,38 +68,55 @@
             <h1 class="text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               Tiled GIF Player
             </h1>
-            <p class="text-xs text-slate-400">Tile GIFs into a full-screen repeating pattern</p>
+            <p class="text-xs text-slate-400">Tile GIFs into a full-screen repeating pattern grid</p>
           </div>
         </div>
 
         <!-- Input Form -->
-        <form id="gifForm" onsubmit="event.preventDefault(); launchFullscreen();" class="space-y-5">
+        <form id="gifForm" onsubmit="event.preventDefault(); launchFullscreen();" class="space-y-4">
           <div>
-            <label for="gifUrl" class="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              GIF URL
-            </label>
-            <div class="relative">
-              <input 
-                type="url" 
-                id="gifUrl" 
-                placeholder="https://media.giphy.com/media/.../giphy.gif" 
-                required
-                class="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-2xl py-3.5 pl-4 pr-11 text-slate-100 placeholder-slate-500 transition-all outline-none text-sm"
-                value="https://media.tenor.com/390VTlJCoWYAAAAC/tenor.gif"
-              >
+            <div class="flex items-center justify-between mb-2">
+              <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
+                GIF List
+              </label>
               <button 
                 type="button" 
-                onclick="pasteClipboard()" 
-                title="Paste from clipboard"
-                class="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-slate-400 hover:text-slate-200 hover:bg-slate-800 rounded-xl transition"
+                onclick="addGifInput()" 
+                class="inline-flex items-center space-x-1 px-2.5 py-1 text-xs font-semibold text-indigo-400 hover:text-white bg-indigo-500/10 hover:bg-indigo-600 rounded-lg transition"
               >
-                <i data-lucide="clipboard" class="w-4 h-4"></i>
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+                <span>Add GIF</span>
               </button>
+            </div>
+
+            <!-- List of GIF URLs -->
+            <div id="gifListContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+              <!-- Rendered via JS -->
+            </div>
+          </div>
+
+          <!-- Compact Preview Card (Visually integrated below input line) -->
+          <div class="pt-1">
+            <div 
+              id="previewContainer" 
+              class="relative w-full h-20 rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center transition-all shadow-inner"
+              style="background-color: #000000;"
+            >
+              <!-- Live Preview Tile Grid -->
+              <div 
+                id="previewTileBg" 
+                class="absolute inset-0 w-full h-full flex flex-wrap content-start items-start transition-all overflow-hidden"
+              ></div>
+              
+              <!-- Badge -->
+              <div class="absolute bottom-1.5 right-2 bg-slate-900/90 backdrop-blur-md px-2 py-0.5 rounded border border-slate-700/50 text-[9px] text-slate-400 font-mono pointer-events-none">
+                Preview Grid
+              </div>
             </div>
           </div>
 
           <!-- Tile Size & Background Settings -->
-          <div class="space-y-4">
+          <div class="space-y-4 pt-2">
             
             <!-- Size Mode Toggle Tabs -->
             <div>
@@ -157,15 +193,15 @@
     <!-- FULLSCREEN DISPLAY CONTAINER -->
     <div 
       id="fullscreenContainer" 
-      class="fixed inset-0 w-full h-full bg-black z-50 hidden select-none"
+      class="fixed inset-0 w-full h-full bg-black z-50 hidden select-none overflow-y-auto"
     >
-      <!-- Tiled GIF Background Display Layer -->
-      <div id="tiledGifBg" class="tiled-gif-bg"></div>
+      <!-- Dynamic Tiled Grid Layer -->
+      <div id="gridDisplayContainer"></div>
 
       <!-- Floating HUD Overlay Controls -->
       <div 
         id="controlsOverlay" 
-        class="controls-overlay absolute top-6 right-6 flex items-center space-x-3 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 p-2 rounded-2xl shadow-2xl"
+        class="controls-overlay absolute top-6 right-6 flex items-center space-x-3 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 p-2 rounded-2xl shadow-2xl z-50"
       >
         <!-- Exit Fullscreen Button -->
         <button 
@@ -182,7 +218,7 @@
       <!-- Quick Tooltip Guide -->
       <div 
         id="hintOverlay" 
-        class="controls-overlay absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md text-slate-300 border border-slate-700/50 px-4 py-2 rounded-full text-xs font-medium shadow-lg pointer-events-none flex items-center space-x-2"
+        class="controls-overlay absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md text-slate-300 border border-slate-700/50 px-4 py-2 rounded-full text-xs font-medium shadow-lg pointer-events-none flex items-center space-x-2 z-50"
       >
         <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400"></i>
         <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-white font-mono text-[10px]">ESC</kbd> or double-click anywhere to exit</span>
@@ -196,12 +232,94 @@
       let repeatCount = 5;
       let computedTileSize = 200;
       let idleTimer = null;
-      const IDLE_TIMEOUT = 3000; // 3 seconds idle hides HUD controls
+      const IDLE_TIMEOUT = 3000;
 
-      // Initialize Lucide Icons
+      // GIF URL List state
+      let gifUrls = ["https://media.tenor.com/390VTlJCoWYAAAAC/tenor.gif"];
+
+      // Initialize Lucide Icons & Initial View
       window.onload = () => {
+        renderGifInputs();
         lucide.createIcons();
+        updatePreview();
       };
+
+      // Dynamic Input List Management
+      function renderGifInputs() {
+        const container = document.getElementById('gifListContainer');
+        container.innerHTML = '';
+
+        gifUrls.forEach((url, index) => {
+          const item = document.createElement('div');
+          item.className = "flex items-center space-x-2";
+          
+          const wrapper = document.createElement('div');
+          wrapper.className = "relative flex-1";
+
+          const input = document.createElement('input');
+          input.type = "url";
+          input.placeholder = "https://media.giphy.com/media/.../giphy.gif";
+          input.required = true;
+          input.value = url;
+          input.className = "w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl py-2 pl-3 pr-9 text-slate-100 placeholder-slate-500 transition-all outline-none text-xs";
+          
+          input.addEventListener('input', (e) => {
+            gifUrls[index] = e.target.value.trim();
+            updatePreview();
+          });
+
+          const pasteBtn = document.createElement('button');
+          pasteBtn.type = "button";
+          pasteBtn.title = "Paste from clipboard";
+          pasteBtn.className = "absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 rounded-lg transition";
+          pasteBtn.innerHTML = `<i data-lucide="clipboard" class="w-3.5 h-3.5"></i>`;
+          pasteBtn.onclick = () => pasteClipboardTo(index);
+
+          wrapper.appendChild(input);
+          wrapper.appendChild(pasteBtn);
+          item.appendChild(wrapper);
+
+          if (gifUrls.length > 1) {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = "button";
+            removeBtn.title = "Remove GIF";
+            removeBtn.className = "p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-xl transition";
+            removeBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i>`;
+            removeBtn.onclick = () => removeGifInput(index);
+            item.appendChild(removeBtn);
+          }
+
+          container.appendChild(item);
+        });
+
+        lucide.createIcons();
+      }
+
+      function addGifInput() {
+        gifUrls.push('');
+        renderGifInputs();
+      }
+
+      function removeGifInput(index) {
+        if (gifUrls.length > 1) {
+          gifUrls.splice(index, 1);
+          renderGifInputs();
+          updatePreview();
+        }
+      }
+
+      async function pasteClipboardTo(index) {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            gifUrls[index] = text.trim();
+            renderGifInputs();
+            updatePreview();
+          }
+        } catch (err) {
+          console.warn('Clipboard read error:', err);
+        }
+      }
 
       // Toggle sizing mode between Fixed Pixels and Horizontal Repeats
       function setSizingMode(mode) {
@@ -247,12 +365,11 @@
         if (sizingMode === 'pixels') {
           return pixelSize;
         } else {
-          // Calculate width needed to fit exactly N repeats across the viewport width
           return window.innerWidth / repeatCount;
         }
       }
 
-      // Helper to update visual display text & actual background size
+      // Helper to update visual display text
       function updateDisplayValue(val) {
         computedTileSize = getActiveTileSize();
         if (sizingMode === 'pixels') {
@@ -260,10 +377,80 @@
         } else {
           document.getElementById('tileSizeVal').textContent = `${val} tiles (${Math.round(computedTileSize)}px each)`;
         }
+        updatePreview();
+      }
 
-        const tiledBg = document.getElementById('tiledGifBg');
-        if (tiledBg) {
-          tiledBg.style.backgroundSize = `${computedTileSize}px auto`;
+      // Update compact live preview box
+      function updatePreview() {
+        const previewBg = document.getElementById('previewTileBg');
+        const previewContainer = document.getElementById('previewContainer');
+        const bgColor = document.getElementById('bgColor').value;
+
+        if (previewContainer) {
+          previewContainer.style.backgroundColor = bgColor;
+        }
+
+        if (!previewBg) return;
+
+        previewBg.innerHTML = '';
+        const validUrls = gifUrls.filter(u => u.trim() !== '');
+        if (validUrls.length === 0) return;
+
+        // Preview tile size calculation
+        let previewTileWidth;
+        if (sizingMode === 'pixels') {
+          previewTileWidth = Math.max(25, pixelSize * 0.25);
+        } else {
+          const previewContainerWidth = previewContainer?.offsetWidth || 500;
+          previewTileWidth = Math.max(15, previewContainerWidth / repeatCount);
+        }
+
+        // Render mini grid for preview (up to 24 tiles max for performance)
+        for (let i = 0; i < 24; i++) {
+          const url = validUrls[i % validUrls.length];
+          const tile = document.createElement('div');
+          tile.className = "gif-tile-item";
+          tile.style.width = `${previewTileWidth}px`;
+          tile.style.backgroundColor = bgColor;
+          
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = "";
+          
+          tile.appendChild(img);
+          previewBg.appendChild(tile);
+        }
+      }
+
+      // Render Fullscreen Grid Items
+      function renderFullscreenGrid() {
+        const gridContainer = document.getElementById('gridDisplayContainer');
+        const bgColor = document.getElementById('bgColor').value;
+        gridContainer.innerHTML = '';
+
+        const validUrls = gifUrls.filter(u => u.trim() !== '');
+        if (validUrls.length === 0) return;
+
+        computedTileSize = getActiveTileSize();
+        
+        // Estimate total items needed to fill viewport screen height with buffer
+        const rowsNeeded = Math.ceil(window.innerHeight / (computedTileSize * 0.75)) + 4;
+        const colsPerRow = sizingMode === 'repeats' ? repeatCount : Math.ceil(window.innerWidth / computedTileSize) + 1;
+        const totalTiles = rowsNeeded * colsPerRow;
+
+        for (let i = 0; i < totalTiles; i++) {
+          const url = validUrls[i % validUrls.length];
+          const tile = document.createElement('div');
+          tile.className = "gif-tile-item";
+          tile.style.width = `${computedTileSize}px`;
+          tile.style.backgroundColor = bgColor;
+
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = "";
+
+          tile.appendChild(img);
+          gridContainer.appendChild(tile);
         }
       }
 
@@ -271,6 +458,13 @@
       window.addEventListener('resize', () => {
         if (sizingMode === 'repeats') {
           updateDisplayValue(repeatCount);
+        } else {
+          updatePreview();
+        }
+
+        const container = document.getElementById('fullscreenContainer');
+        if (!container.classList.contains('hidden')) {
+          renderFullscreenGrid();
         }
       });
 
@@ -278,60 +472,35 @@
       function updateBgColor(color) {
         document.getElementById('bgColorHex').textContent = color;
         document.getElementById('fullscreenContainer').style.backgroundColor = color;
-      }
-
-      // Paste text from user clipboard safely
-      async function pasteClipboard() {
-        try {
-          const text = await navigator.clipboard.readText();
-          if (text) {
-            document.getElementById('gifUrl').value = text;
-          }
-        } catch (err) {
-          // Fallback method using document.execCommand if clipboard API restricted
-          const input = document.getElementById('gifUrl');
-          input.focus();
-          document.execCommand('paste');
-        }
+        updatePreview();
       }
 
       // Launch Fullscreen mode with requestFullscreen API
       async function launchFullscreen() {
-        const urlInput = document.getElementById('gifUrl').value.trim();
-        if (!urlInput) return;
+        const validUrls = gifUrls.filter(u => u.trim() !== '');
+        if (validUrls.length === 0) return;
 
         const container = document.getElementById('fullscreenContainer');
-        const tiledBg = document.getElementById('tiledGifBg');
-
-        // Compute current tile size before displaying
-        computedTileSize = getActiveTileSize();
-
-        // Set repeating tiled background image & size
-        tiledBg.style.backgroundImage = `url("${urlInput}")`;
-        tiledBg.style.backgroundSize = `${computedTileSize}px auto`;
-
+        renderFullscreenGrid();
         container.classList.remove('hidden');
 
         // Request native Fullscreen if supported
         try {
           if (container.requestFullscreen) {
             await container.requestFullscreen();
-          } else if (container.webkitRequestFullscreen) { /* Safari */
+          } else if (container.webkitRequestFullscreen) {
             await container.webkitRequestFullscreen();
-          } else if (container.msRequestFullscreen) { /* IE11 */
+          } else if (container.msRequestFullscreen) {
             await container.msRequestFullscreen();
           }
         } catch (e) {
-          console.warn('Native Fullscreen denied or unsupported. Proceeding with full viewport fallback.', e);
+          console.warn('Native Fullscreen denied or unsupported.', e);
         }
 
-        // Recalculate tile size after entering fullscreen since innerWidth might change
         setTimeout(() => {
-          computedTileSize = getActiveTileSize();
-          tiledBg.style.backgroundSize = `${computedTileSize}px auto`;
+          renderFullscreenGrid();
         }, 100);
 
-        // Track cursor activity for hiding HUD overlay
         startIdleListener();
       }
 
@@ -339,13 +508,10 @@
       function exitFullscreen() {
         const container = document.getElementById('fullscreenContainer');
         container.classList.add('hidden');
-
-        // Reset tiled background image to stop playback resource consumption
-        document.getElementById('tiledGifBg').style.backgroundImage = 'none';
+        document.getElementById('gridDisplayContainer').innerHTML = '';
 
         stopIdleListener();
 
-        // Safely exit browser native fullscreen only if an element is actively fullscreen
         try {
           const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
           
@@ -365,13 +531,11 @@
         }
       }
 
-      // Listen for Escape key or native fullscreen exit event
       document.addEventListener('fullscreenchange', handleFullscreenChange);
       document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
 
       function handleFullscreenChange() {
         if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-          // Browser exited native fullscreen
           const container = document.getElementById('fullscreenContainer');
           if (!container.classList.contains('hidden')) {
             exitFullscreen();
@@ -379,15 +543,12 @@
         }
       }
 
-      // Double-click to exit full screen view quickly
       document.getElementById('fullscreenContainer').addEventListener('dblclick', (e) => {
-        // Don't exit if double clicking controls overlay
         if (!e.target.closest('#controlsOverlay')) {
           exitFullscreen();
         }
       });
 
-      // Idle Mouse Timer Logic for Clean Fullscreen Viewing
       function resetIdleTimer() {
         const overlays = document.querySelectorAll('.controls-overlay');
         overlays.forEach(el => el.classList.remove('idle-hidden'));
