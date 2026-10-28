@@ -44,8 +44,13 @@
         object-fit: contain;
       }
     </style>
-    <!-- Lightweight omggif decoder script via unpkg -->
-    <script src="https://unpkg.com/omggif@1.0.10/omggif.js"></script>
+    <!-- Lightweight omggif decoder script with fallback CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/omggif@1.0.10/omggif.min.js"></script>
+    <script>
+      if (typeof omggif === 'undefined') {
+        document.write('<script src="https://unpkg.com/omggif@1.0.10/omggif.js"><\/script>');
+      }
+    </script>
   </head>
   <body class="h-full flex flex-col justify-between overflow-x-hidden bg-slate-950 text-slate-100">
 
@@ -512,11 +517,17 @@
       async function loadAndDecodeGif(url) {
         if (gifFrameCache.has(url)) return gifFrameCache.get(url);
 
+        const omggifLib = window.omggif || (typeof omggif !== 'undefined' ? omggif : null);
+        if (!omggifLib || !omggifLib.GifReader) {
+          console.warn('omggif library is not loaded. Falling back to standard image display.');
+          return null;
+        }
+
         try {
           const response = await fetch(url);
           const buffer = await response.arrayBuffer();
           const byteArray = new Uint8Array(buffer);
-          const gr = new omggif.GifReader(byteArray);
+          const gr = new omggifLib.GifReader(byteArray);
 
           const width = gr.width;
           const height = gr.height;
