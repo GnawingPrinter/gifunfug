@@ -37,15 +37,17 @@
         box-sizing: border-box;
       }
 
-      .gif-tile-item img {
+      .gif-tile-item img, .gif-tile-item canvas {
         width: 100%;
         height: auto;
         display: block;
         object-fit: contain;
       }
     </style>
+    <!-- Lightweight omggif decoder script via unpkg -->
+    <script src="https://unpkg.com/omggif@1.0.10/omggif.js"></script>
   </head>
-  <body class="h-full flex flex-col justify-between overflow-x-hidden">
+  <body class="h-full flex flex-col justify-between overflow-x-hidden bg-slate-950 text-slate-100">
 
     <!-- MAIN CONFIGURATION VIEW (Non-Fullscreen Hub) -->
     <main id="configView" class="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative">
@@ -68,12 +70,29 @@
             <h1 class="text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               Tiled GIF Player
             </h1>
-            <p class="text-xs text-slate-400">Tile GIFs into a full-screen repeating pattern grid</p>
+            <p class="text-xs text-slate-400">Tile GIFs into a full-screen repeating pattern grid with BPM sync</p>
           </div>
         </div>
 
         <!-- Input Form -->
         <form id="gifForm" onsubmit="event.preventDefault(); launchFullscreen();" class="space-y-4">
+          
+          <!-- Master Tap Tempo Sync Controller (Top of List) -->
+          <div class="bg-slate-950/80 border border-slate-800 p-3 rounded-2xl flex items-center justify-between">
+            <div>
+              <span class="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Master BPM / Tap Sync</span>
+              <span id="globalBpmDisplay" class="text-xs font-mono text-indigo-400">1.00s (60 BPM)</span>
+            </div>
+            <button 
+              type="button" 
+              id="masterTapBtn"
+              onclick="handleTapTempo(event)" 
+              class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition"
+            >
+              TAP TEMPO
+            </button>
+          </div>
+
           <div>
             <div class="flex items-center justify-between mb-2">
               <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -89,13 +108,13 @@
               </button>
             </div>
 
-            <!-- List of GIF URLs -->
-            <div id="gifListContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+            <!-- List of GIF items -->
+            <div id="gifListContainer" class="space-y-2.5 max-h-52 overflow-y-auto pr-1">
               <!-- Rendered via JS -->
             </div>
           </div>
 
-          <!-- Compact Preview Card (Visually integrated below input line) -->
+          <!-- Compact Preview Card -->
           <div class="pt-1">
             <div 
               id="previewContainer" 
@@ -229,7 +248,7 @@
                 >
               </div>
 
-              <!-- Mode 3: Color List & Tap Tempo Controls -->
+              <!-- Mode 3: Color List Controls -->
               <div id="bgConfigList" class="hidden space-y-3 bg-slate-950 p-3 border border-slate-800 rounded-2xl">
                 <div class="flex items-center justify-between">
                   <label class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Palette Colors</label>
@@ -246,23 +265,6 @@
                 <!-- Palette Colors List -->
                 <div id="paletteListContainer" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1">
                   <!-- Rendered via JS -->
-                </div>
-
-                <!-- Interval & DJ Tap Button Controls -->
-                <div class="flex items-center space-x-3 pt-1 border-t border-slate-800/60">
-                  <div class="flex-1">
-                    <span class="block text-[10px] text-slate-400 uppercase tracking-wider">Interval</span>
-                    <span id="intervalDisplay" class="text-xs font-mono text-indigo-400">1.00s (60 BPM)</span>
-                  </div>
-                  <!-- DJ Style Tap Tempo Button -->
-                  <button 
-                    type="button" 
-                    id="tapTempoBtn"
-                    onclick="handleTapTempo(event)" 
-                    class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition"
-                  >
-                    TAP TEMPO
-                  </button>
                 </div>
               </div>
 
@@ -314,7 +316,7 @@
         class="controls-overlay absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md text-slate-300 border border-slate-700/50 px-4 py-2 rounded-full text-xs font-medium shadow-lg pointer-events-none flex items-center space-x-2 z-50"
       >
         <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400"></i>
-        <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-white font-mono text-[10px]">ESC</kbd> or double-click to exit • Tap anywhere to set BPM interval</span>
+        <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-white font-mono text-[10px]">ESC</kbd> or double-click to exit • Tap anywhere to update Tap Tempo</span>
       </div>
     </div>
 
@@ -335,13 +337,18 @@
       // Color list & tap tempo state
       let colorPalette = ["#ff0055", "#00e5ff", "#7600ff", "#ffb700", "#00ff66"];
       let paletteIndex = 0;
-      let colorIntervalMs = 1000; // 1 second default
+      let colorIntervalMs = 1000; // 1 second default (60 BPM)
       let bgIntervalTimer = null;
       let rainbowAnimationId = null;
       let tapTimestamps = [];
 
-      // GIF URL List state
-      let gifUrls = ["https://media.tenor.com/390VTlJCoWYAAAAC/tenor.gif"];
+      // GIF URL List items state with stretch toggle state
+      let gifItems = [
+        { url: "https://media.tenor.com/390VTlJCoWYAAAAC/tenor.gif", stretch: false }
+      ];
+
+      // Parsed GIF Frames Cache for smooth canvas rendering
+      const gifFrameCache = new Map();
 
       // Initialize Lucide Icons & Initial View
       window.onload = () => {
@@ -357,21 +364,24 @@
         const container = document.getElementById('gifListContainer');
         container.innerHTML = '';
 
-        gifUrls.forEach((url, index) => {
-          const item = document.createElement('div');
-          item.className = "flex items-center space-x-2";
+        gifItems.forEach((item, index) => {
+          const row = document.createElement('div');
+          row.className = "flex flex-col space-y-1 bg-slate-900/90 border border-slate-800 p-2.5 rounded-2xl";
           
+          const topRow = document.createElement('div');
+          topRow.className = "flex items-center space-x-2";
+
           const wrapper = document.createElement('div');
           wrapper.className = "relative flex-1";
 
           const input = document.createElement('input');
           input.type = "url";
           input.placeholder = "Enter GIF URL (or leave blank for solid tile)";
-          input.value = url;
+          input.value = item.url;
           input.className = "w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl py-2 pl-3 pr-9 text-slate-100 placeholder-slate-500 transition-all outline-none text-xs";
           
           input.addEventListener('input', (e) => {
-            gifUrls[index] = e.target.value.trim();
+            gifItems[index].url = e.target.value.trim();
             updatePreview();
             renderFullscreenGridIfActive();
           });
@@ -385,34 +395,65 @@
 
           wrapper.appendChild(input);
           wrapper.appendChild(pasteBtn);
-          item.appendChild(wrapper);
+          topRow.appendChild(wrapper);
 
-          if (gifUrls.length > 1) {
+          if (gifItems.length > 1) {
             const removeBtn = document.createElement('button');
             removeBtn.type = "button";
             removeBtn.title = "Remove GIF slot";
             removeBtn.className = "p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-xl transition";
             removeBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i>`;
             removeBtn.onclick = () => removeGifInput(index);
-            item.appendChild(removeBtn);
+            topRow.appendChild(removeBtn);
           }
 
-          container.appendChild(item);
+          // Bottom Control Row: Time-Stretch Toggle
+          const botRow = document.createElement('div');
+          botRow.className = "flex items-center justify-between pt-1 border-t border-slate-800/60 text-[11px] text-slate-400";
+          
+          const stretchLabel = document.createElement('label');
+          stretchLabel.className = "flex items-center space-x-2 cursor-pointer select-none";
+          
+          const toggleInput = document.createElement('input');
+          toggleInput.type = "checkbox";
+          toggleInput.checked = item.stretch;
+          toggleInput.className = "sr-only peer";
+          toggleInput.onchange = (e) => {
+            gifItems[index].stretch = e.target.checked;
+            updatePreview();
+            renderFullscreenGridIfActive();
+          };
+
+          const switchBg = document.createElement('div');
+          switchBg.className = "w-7 h-4 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600 relative";
+
+          const spanText = document.createElement('span');
+          spanText.textContent = "Auto Stretch Speed to Tap Tempo";
+
+          stretchLabel.appendChild(toggleInput);
+          stretchLabel.appendChild(switchBg);
+          stretchLabel.appendChild(spanText);
+          botRow.appendChild(stretchLabel);
+
+          row.appendChild(topRow);
+          row.appendChild(botRow);
+
+          container.appendChild(row);
         });
 
         lucide.createIcons();
       }
 
       function addGifInput() {
-        gifUrls.push('');
+        gifItems.push({ url: '', stretch: false });
         renderGifInputs();
         updatePreview();
         renderFullscreenGridIfActive();
       }
 
       function removeGifInput(index) {
-        if (gifUrls.length > 1) {
-          gifUrls.splice(index, 1);
+        if (gifItems.length > 1) {
+          gifItems.splice(index, 1);
           renderGifInputs();
           updatePreview();
           renderFullscreenGridIfActive();
@@ -423,13 +464,100 @@
         try {
           const text = await navigator.clipboard.readText();
           if (text) {
-            gifUrls[index] = text.trim();
+            gifItems[index].url = text.trim();
             renderGifInputs();
             updatePreview();
             renderFullscreenGridIfActive();
           }
         } catch (err) {
           console.warn('Clipboard read error:', err);
+        }
+      }
+
+      // Tap Tempo Handler (Works globally for both stretch playback & color list)
+      function handleTapTempo(e) {
+        if (e) e.stopPropagation();
+        const now = Date.now();
+        tapTimestamps.push(now);
+
+        // Keep only taps within the last 3 seconds
+        tapTimestamps = tapTimestamps.filter(t => now - t < 3000);
+
+        if (tapTimestamps.length >= 2) {
+          let intervals = [];
+          for (let i = 1; i < tapTimestamps.length; i++) {
+            intervals.push(tapTimestamps[i] - tapTimestamps[i - 1]);
+          }
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          colorIntervalMs = Math.max(100, Math.min(5000, avgInterval));
+          updateIntervalDisplay();
+          startBgModeLoop();
+          renderFullscreenGridIfActive();
+        }
+
+        // Advance color step immediately on tap if background mode is 'list'
+        if (bgMode === 'list' && colorPalette.length > 0) {
+          paletteIndex = (paletteIndex + 1) % colorPalette.length;
+          applyActiveBgColor(colorPalette[paletteIndex]);
+        }
+      }
+
+      function updateIntervalDisplay() {
+        const seconds = (colorIntervalMs / 1000).toFixed(2);
+        const bpm = Math.round(60000 / colorIntervalMs);
+        document.getElementById('globalBpmDisplay').textContent = `${seconds}s (${bpm} BPM)`;
+      }
+
+      // Fetch & parse GIF frames using omggif for canvas time-stretching
+      async function loadAndDecodeGif(url) {
+        if (gifFrameCache.has(url)) return gifFrameCache.get(url);
+
+        try {
+          const response = await fetch(url);
+          const buffer = await response.arrayBuffer();
+          const byteArray = new Uint8Array(buffer);
+          const gr = new omggif.GifReader(byteArray);
+
+          const width = gr.width;
+          const height = gr.height;
+          const frameCount = gr.numFrames();
+          const frames = [];
+
+          let previousImageData = null;
+
+          for (let i = 0; i < frameCount; i++) {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+
+            if (previousImageData && gr.frameInfo(i).disposal === 1) {
+              ctx.putImageData(previousImageData, 0, 0);
+            }
+
+            const frameInfo = gr.frameInfo(i);
+            const imageData = ctx.createImageData(width, height);
+            gr.decodeAndBlitFrameRGBA(i, imageData.data);
+            
+            // Render onto temporary canvas frame
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = width;
+            tempCanvas.height = height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.putImageData(imageData, 0, 0);
+
+            ctx.drawImage(tempCanvas, 0, 0);
+            previousImageData = ctx.getImageData(0, 0, width, height);
+
+            frames.push(canvas);
+          }
+
+          const parsed = { width, height, frames, count: frames.length };
+          gifFrameCache.set(url, parsed);
+          return parsed;
+        } catch (err) {
+          console.warn('Failed to parse GIF for time stretching:', err);
+          return null;
         }
       }
 
@@ -503,39 +631,6 @@
         const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
         colorPalette.push(randomColor);
         renderPaletteInputs();
-      }
-
-      // Tap Tempo Handler (DJ / Lighting Controller style)
-      function handleTapTempo(e) {
-        if (e) e.stopPropagation();
-        const now = Date.now();
-        tapTimestamps.push(now);
-
-        // Keep only taps within the last 3 seconds
-        tapTimestamps = tapTimestamps.filter(t => now - t < 3000);
-
-        if (tapTimestamps.length >= 2) {
-          let intervals = [];
-          for (let i = 1; i < tapTimestamps.length; i++) {
-            intervals.push(tapTimestamps[i] - tapTimestamps[i - 1]);
-          }
-          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-          colorIntervalMs = Math.max(100, Math.min(5000, avgInterval));
-          updateIntervalDisplay();
-          startBgModeLoop();
-        }
-
-        // Advance step immediately on tap
-        if (bgMode === 'list' && colorPalette.length > 0) {
-          paletteIndex = (paletteIndex + 1) % colorPalette.length;
-          applyActiveBgColor(colorPalette[paletteIndex]);
-        }
-      }
-
-      function updateIntervalDisplay() {
-        const seconds = (colorIntervalMs / 1000).toFixed(2);
-        const bpm = Math.round(60000 / colorIntervalMs);
-        document.getElementById('intervalDisplay').textContent = `${seconds}s (${bpm} BPM)`;
       }
 
       function applyActiveBgColor(color) {
@@ -636,20 +731,65 @@
         renderFullscreenGridIfActive();
       }
 
-      // Sync custom static background color
       function updateBgColor(color) {
         staticBgColor = color;
         document.getElementById('bgColorHex').textContent = color;
         if (bgMode === 'static') applyActiveBgColor(color);
       }
 
-      // Update preview grid (Allow empty inputs to show solid background blocks)
-      function updatePreview() {
+      // Render tile helper (Handles standard image vs parsed stretched canvas)
+      async function createTileElement(item, targetWidth) {
+        const tile = document.createElement('div');
+        tile.className = "gif-tile-item";
+        tile.style.width = `${targetWidth}px`;
+
+        if (!item || !item.url || item.url.trim() === '') {
+          return tile;
+        }
+
+        if (item.stretch) {
+          const parsed = await loadAndDecodeGif(item.url);
+          if (parsed && parsed.count > 0) {
+            const canvas = document.createElement('canvas');
+            canvas.width = parsed.width;
+            canvas.height = parsed.height;
+            const ctx = canvas.getContext('2d');
+
+            let animationFrameId;
+            let startTime = performance.now();
+
+            function renderStretchedFrame(now) {
+              const elapsed = (now - startTime) % colorIntervalMs;
+              const progress = elapsed / colorIntervalMs;
+              const frameIdx = Math.floor(progress * parsed.count);
+              
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(parsed.frames[frameIdx], 0, 0);
+
+              animationFrameId = requestAnimationFrame(renderStretchedFrame);
+            }
+
+            animationFrameId = requestAnimationFrame(renderStretchedFrame);
+            tile.appendChild(canvas);
+            return tile;
+          }
+        }
+
+        // Default: Standard image element (disable stretch mode)
+        const img = document.createElement('img');
+        img.src = item.url;
+        img.alt = "";
+        tile.appendChild(img);
+        return tile;
+      }
+
+      // Update preview grid
+      async function updatePreview() {
         const previewBg = document.getElementById('previewTileBg');
         if (!previewBg) return;
 
         previewBg.innerHTML = '';
-        if (gifUrls.length === 0) return;
+        if (gifItems.length === 0) return;
 
         let previewTileWidth;
         if (sizingMode === 'pixels') {
@@ -660,28 +800,18 @@
         }
 
         for (let i = 0; i < 24; i++) {
-          const url = gifUrls[i % gifUrls.length];
-          const tile = document.createElement('div');
-          tile.className = "gif-tile-item";
-          tile.style.width = `${previewTileWidth}px`;
-
-          if (url && url.trim() !== '') {
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = "";
-            tile.appendChild(img);
-          }
-
-          previewBg.appendChild(tile);
+          const item = gifItems[i % gifItems.length];
+          const tileEl = await createTileElement(item, previewTileWidth);
+          previewBg.appendChild(tileEl);
         }
       }
 
-      // Render Fullscreen Grid Items (Renders empty tile slots as solid color blocks)
-      function renderFullscreenGrid() {
+      // Render Fullscreen Grid Items
+      async function renderFullscreenGrid() {
         const gridContainer = document.getElementById('gridDisplayContainer');
         gridContainer.innerHTML = '';
 
-        if (gifUrls.length === 0) return;
+        if (gifItems.length === 0) return;
 
         computedTileSize = getActiveTileSize();
         
@@ -690,19 +820,9 @@
         const totalTiles = rowsNeeded * colsPerRow;
 
         for (let i = 0; i < totalTiles; i++) {
-          const url = gifUrls[i % gifUrls.length];
-          const tile = document.createElement('div');
-          tile.className = "gif-tile-item";
-          tile.style.width = `${computedTileSize}px`;
-
-          if (url && url.trim() !== '') {
-            const img = document.createElement('img');
-            img.src = url;
-            img.alt = "";
-            tile.appendChild(img);
-          }
-
-          gridContainer.appendChild(tile);
+          const item = gifItems[i % gifItems.length];
+          const tileEl = await createTileElement(item, computedTileSize);
+          gridContainer.appendChild(tileEl);
         }
       }
 
@@ -724,10 +844,10 @@
 
       // Launch Fullscreen mode
       async function launchFullscreen() {
-        if (gifUrls.length === 0) return;
+        if (gifItems.length === 0) return;
 
         const container = document.getElementById('fullscreenContainer');
-        renderFullscreenGrid();
+        await renderFullscreenGrid();
         container.classList.remove('hidden');
 
         try {
@@ -801,10 +921,8 @@
         }
         lastFullscreenClick = now;
 
-        // Single click triggers tap tempo if in 'list' mode or updates tap state
-        if (bgMode === 'list') {
-          handleTapTempo(null);
-        }
+        // Single click triggers tap tempo globally
+        handleTapTempo(null);
       });
 
       function resetIdleTimer() {
