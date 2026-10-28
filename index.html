@@ -242,7 +242,7 @@
         root.omggif = { GifReader: GifReader };
       })(typeof window !== 'undefined' ? window : this);
     </script>
-    <!-- Lucide Icons Library (cdnjs fallback to avoid unpkg source map network issues) -->
+    <!-- Lucide Icons Library with graceful fallback handling -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   </head>
   <body class="h-full flex flex-col justify-between overflow-x-hidden bg-slate-950 text-slate-100">
@@ -519,6 +519,34 @@
     </div>
 
     <script>
+      // Fallback SVG icon definitions if CDN script fails or gets blocked
+      const FALLBACK_ICONS = {
+        'grid': `<svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>`,
+        'plus': `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>`,
+        'clipboard': `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/></svg>`,
+        'trash-2': `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`,
+        'expand': `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`,
+        'x': `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
+        'info': `<svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`
+      };
+
+      function renderIcons() {
+        if (typeof lucide !== 'undefined' && lucide && lucide.createIcons) {
+          try {
+            lucide.createIcons();
+            return;
+          } catch (e) {
+            console.warn('Lucide icon rendering failed, using SVG fallback:', e);
+          }
+        }
+        document.querySelectorAll('i[data-lucide]').forEach(el => {
+          const iconName = el.getAttribute('data-lucide');
+          if (FALLBACK_ICONS[iconName]) {
+            el.outerHTML = FALLBACK_ICONS[iconName];
+          }
+        });
+      }
+
       // State variables
       let sizingMode = 'pixels'; // 'pixels' or 'repeats'
       let pixelSize = 200;
@@ -548,13 +576,41 @@
       // Parsed GIF Frames Cache for smooth canvas rendering
       const gifFrameCache = new Map();
 
+      // Lightweight Inline SVG Icon Helper (Replaces external Lucide library to avoid CDN MIME errors)
+      const ICON_SVGS = {
+        'grid': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-grid"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>',
+        'plus': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-plus"><path d="M5 12h14"/><path d="M12 5v14"/></svg>',
+        'trash-2': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-trash-2"><path d="3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
+        'clipboard': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clipboard"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></svg>',
+        'expand': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-expand"><path d="m21 21-6-6m6 6v-4.8m0 4.8h-4.8M3 3l6 6M3 3v4.8M3 3h4.8M21 3l-6 6m6-6v4.8m0-4.8h-4.8M3 21l6-6M3 21v-4.8M3 21h4.8"/></svg>',
+        'x': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-x"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>',
+        'info': '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-info"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>'
+      };
+
+      function renderIcons() {
+        document.querySelectorAll('i[data-lucide]').forEach(el => {
+          const iconName = el.getAttribute('data-lucide');
+          if (ICON_SVGS[iconName]) {
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(ICON_SVGS[iconName], 'image/svg+xml');
+            const svg = doc.querySelector('svg');
+            if (svg) {
+              Array.from(el.attributes).forEach(attr => {
+                if (attr.name !== 'data-lucide') {
+                  svg.setAttribute(attr.name, attr.value);
+                }
+              });
+              el.replaceWith(svg);
+            }
+          }
+        });
+      }
+
       // Initialize Lucide Icons & Initial View
       window.onload = () => {
         renderGifInputs();
         renderPaletteInputs();
-        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-          lucide.createIcons();
-        }
+        renderIcons();
         updatePreview();
         startBgModeLoop();
       };
@@ -641,9 +697,7 @@
           container.appendChild(row);
         });
 
-        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-          lucide.createIcons();
-        }
+        renderIcons();
       }
 
       function addGifInput() {
@@ -843,9 +897,7 @@
           container.appendChild(item);
         });
 
-        if (typeof lucide !== 'undefined' && lucide.createIcons) {
-          lucide.createIcons();
-        }
+        renderIcons();
       }
 
       function addPaletteColor() {
