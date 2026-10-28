@@ -1,12 +1,4 @@
-<head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tiled GIF Viewer</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
+<style>
       /* Auto hide controls overlay when idle in fullscreen */
       .controls-overlay {
         transition: opacity 0.3s ease-in-out, visibility 0.3s ease-in-out;
@@ -44,13 +36,206 @@
         object-fit: contain;
       }
     </style>
-    <!-- Lightweight omggif decoder script with fallback CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/omggif@1.0.10/omggif.min.js"></script>
+    <!-- Embedded Self-Contained omggif Decoder (Zero External CDN Dependency) -->
     <script>
-      if (typeof omggif === 'undefined') {
-        document.write('<script src="https://unpkg.com/omggif@1.0.10/omggif.js"><\/script>');
-      }
+      (function(root) {
+        // omggif v1.0.10 bundled inline
+        function GifReader(buf) {
+          var p = 0;
+          if (buf[p++] !== 0x47 || buf[p++] !== 0x49 || buf[p++] !== 0x46 ||
+              buf[p++] !== 0x38 || (buf[p++] !== 0x37 && buf[p-1] !== 0x39) ||
+              buf[p++] !== 0x61) {
+            throw new Error("Invalid GIF file format");
+          }
+          this.buf = buf;
+          this.width = buf[p++] | (buf[p++] << 8);
+          this.height = buf[p++] | (buf[p++] << 8);
+          var pf0 = buf[p++];
+          this.globalPaletteOffset = null;
+          this.globalPaletteSize = null;
+          if (pf0 & 0x80) {
+            this.globalPaletteOffset = p;
+            this.globalPaletteSize = 1 << ((pf0 & 0x07) + 1);
+            p += this.globalPaletteSize * 3;
+          }
+          this.loopCount = null;
+          this.frames = [];
+          p += 2; // bg index & aspect ratio
+          while (p < buf.length) {
+            var blockId = buf[p++];
+            if (blockId === 0x21) {
+              var extId = buf[p++];
+              if (extId === 0xF9) {
+                var blockSize = buf[p++];
+                var gceFlags = buf[p++];
+                var delay = buf[p++] | (buf[p++] << 8);
+                var transIdx = buf[p++];
+                p++; // block terminator
+                this._gce = {
+                  disposal: (gceFlags >> 2) & 0x07,
+                  delay: delay,
+                  transIndex: (gceFlags & 0x01) ? transIdx : null
+                };
+              } else if (extId === 0xFF) {
+                var appBlockSize = buf[p++];
+                var appStr = "";
+                for (var i = 0; i < appBlockSize; i++) appStr += String.fromCharCode(buf[p++]);
+                if (appStr === "NETSCAPE2.0" || appStr === "ANIMEXTS1.0") {
+                  p++; // sub-block length (3)
+                  p++; // 1
+                  this.loopCount = buf[p++] | (buf[p++] << 8);
+                  p++; // sub-block terminator
+                } else {
+                  while (p < buf.length) {
+                    var len = buf[p++];
+                    if (len === 0) break;
+                    p += len;
+                  }
+                }
+              } else {
+                while (p < buf.length) {
+                  var subLen = buf[p++];
+                  if (subLen === 0) break;
+                  p += subLen;
+                }
+              }
+            } else if (blockId === 0x2C) {
+              var x = buf[p++] | (buf[p++] << 8);
+              var y = buf[p++] | (buf[p++] << 8);
+              var w = buf[p++] | (buf[p++] << 8);
+              var h = buf[p++] | (buf[p++] << 8);
+              var flags = buf[p++];
+              var hasLct = (flags & 0x80) !== 0;
+              var lctSize = hasLct ? (1 << ((flags & 0x07) + 1)) : 0;
+              var lctOffset = hasLct ? p : null;
+              p += lctSize * 3;
+              var dataOffset = p;
+              p++; // min code size
+              while (p < buf.length) {
+                var dLen = buf[p++];
+                if (dLen === 0) break;
+                p += dLen;
+              }
+              var gce = this._gce || { disposal: 0, delay: 0, transIndex: null };
+              this._gce = null;
+              this.frames.push({
+                x: x, y: y, width: w, height: h,
+                hasLct: hasLct, lctOffset: lctOffset, lctSize: lctSize,
+                dataOffset: dataOffset, disposal: gce.disposal, delay: gce.delay,
+                transIndex: gce.transIndex
+              });
+            } else if (blockId === 0x3B) {
+              break; // Trailer
+            }
+          }
+        }
+
+        GifReader.prototype.numFrames = function() { return this.frames.length; };
+        GifReader.prototype.frameInfo = function(frameIdx) { return this.frames[frameIdx]; };
+
+        GifReader.prototype.decodeAndBlitFrameRGBA = function(frameIdx, pixels) {
+          var frame = this.frames[frameIdx];
+          var p = frame.dataOffset;
+          var minCodeSize = this.buf[p++];
+          var clearCode = 1 << minCodeSize;
+          var eoiCode = clearCode + 1;
+          var nextCode = eoiCode + 1;
+          var curCodeSize = minCodeSize + 1;
+          var codeMask = (1 << curCodeSize) - 1;
+
+          var paletteOffset = frame.hasLct ? frame.lctOffset : this.globalPaletteOffset;
+          var transIndex = frame.transIndex;
+          var buf = this.buf;
+
+          var stack = new Uint16Array(4096);
+          var suffix = new Uint8Array(4096);
+          var prefix = new Uint16Array(4096);
+
+          for (var i = 0; i < clearCode; i++) suffix[i] = i;
+
+          var subBlockLen = buf[p++];
+          var subBlockEnd = p + subBlockLen;
+          var bitBuf = 0, bitLen = 0;
+          var top = 0, prevCode = null;
+
+          var x = frame.x, y = frame.y;
+          var fw = frame.width, fh = frame.height;
+          var canvasWidth = this.width;
+
+          while (true) {
+            while (bitLen < curCodeSize) {
+              if (p >= subBlockEnd) {
+                if (subBlockLen === 0) break;
+                subBlockLen = buf[p++];
+                subBlockEnd = p + subBlockLen;
+                if (subBlockLen === 0) break;
+              }
+              bitBuf |= (buf[p++] << bitLen);
+              bitLen += 8;
+            }
+            if (bitLen < curCodeSize) break;
+
+            var code = bitBuf & codeMask;
+            bitBuf >>= curCodeSize;
+            bitLen -= curCodeSize;
+
+            if (code === clearCode) {
+              curCodeSize = minCodeSize + 1;
+              codeMask = (1 << curCodeSize) - 1;
+              nextCode = eoiCode + 1;
+              prevCode = null;
+              continue;
+            }
+            if (code === eoiCode) break;
+
+            var inCode = code;
+            if (code >= nextCode) {
+              stack[top++] = prevCode === null ? 0 : prevCode;
+              code = prevCode;
+            }
+
+            while (code >= clearCode) {
+              stack[top++] = suffix[code];
+              code = prefix[code];
+            }
+            stack[top++] = code;
+
+            if (prevCode !== null && nextCode < 4096) {
+              prefix[nextCode] = prevCode;
+              suffix[nextCode] = code;
+              nextCode++;
+              if ((nextCode & codeMask) === 0 && nextCode < 4096) {
+                curCodeSize++;
+                codeMask = (1 << curCodeSize) - 1;
+              }
+            }
+            prevCode = inCode;
+
+            while (top > 0) {
+              var idx = stack[--top];
+              if (idx !== transIndex && paletteOffset !== null) {
+                var palIdx = paletteOffset + idx * 3;
+                var pxIdx = ((y * canvasWidth) + x) * 4;
+                pixels[pxIdx]     = buf[palIdx];
+                pixels[pxIdx + 1] = buf[palIdx + 1];
+                pixels[pxIdx + 2] = buf[palIdx + 2];
+                pixels[pxIdx + 3] = 255;
+              }
+              x++;
+              if (x >= frame.x + fw) {
+                x = frame.x;
+                y++;
+                if (y >= frame.y + fh) break;
+              }
+            }
+          }
+        };
+
+        root.omggif = { GifReader: GifReader };
+      })(typeof window !== 'undefined' ? window : this);
     </script>
+    <!-- Lucide Icons Library with Safe Onload Callback -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js" onload="if(window.lucide) window.lucide.createIcons()"></script>
   </head>
   <body class="h-full flex flex-col justify-between overflow-x-hidden bg-slate-950 text-slate-100">
 
@@ -359,7 +544,9 @@
       window.onload = () => {
         renderGifInputs();
         renderPaletteInputs();
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+          lucide.createIcons();
+        }
         updatePreview();
         startBgModeLoop();
       };
@@ -446,7 +633,9 @@
           container.appendChild(row);
         });
 
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+          lucide.createIcons();
+        }
       }
 
       function addGifInput() {
@@ -517,14 +706,25 @@
       async function loadAndDecodeGif(url) {
         if (gifFrameCache.has(url)) return gifFrameCache.get(url);
 
-        const omggifLib = window.omggif || (typeof omggif !== 'undefined' ? omggif : null);
+        const omggifLib = window.omggif;
         if (!omggifLib || !omggifLib.GifReader) {
           console.warn('omggif library is not loaded. Falling back to standard image display.');
           return null;
         }
 
         try {
-          const response = await fetch(url);
+          // Attempt standard fetch first
+          let response;
+          try {
+            response = await fetch(url);
+          } catch (e) {
+            // Fallback CORS proxy attempt if direct fetch is blocked by browser CORS security
+            const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`;
+            response = await fetch(proxyUrl);
+          }
+
+          if (!response.ok) throw new Error(`HTTP Error ${response.status}`);
+          
           const buffer = await response.arrayBuffer();
           const byteArray = new Uint8Array(buffer);
           const gr = new omggifLib.GifReader(byteArray);
@@ -567,7 +767,7 @@
           gifFrameCache.set(url, parsed);
           return parsed;
         } catch (err) {
-          console.warn('Failed to parse GIF for time stretching:', err);
+          console.warn('Failed to parse GIF for time stretching (CORS or network error). Falling back to standard image tag:', err);
           return null;
         }
       }
@@ -635,7 +835,9 @@
           container.appendChild(item);
         });
 
-        lucide.createIcons();
+        if (typeof lucide !== 'undefined' && lucide.createIcons) {
+          lucide.createIcons();
+        }
       }
 
       function addPaletteColor() {
