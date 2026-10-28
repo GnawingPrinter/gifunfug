@@ -1,11 +1,11 @@
-<!DOCTYPE html>
-<html lang="en" class="h-full bg-slate-950">
-  <head>
+<head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Tiled GIF Player</title>
+    <title>Tiled GIF Viewer</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
       /* Auto hide controls overlay when idle in fullscreen */
       .controls-overlay {
@@ -37,215 +37,15 @@
         box-sizing: border-box;
       }
 
-      .gif-tile-item img, .gif-tile-item canvas {
+      .gif-tile-item img {
         width: 100%;
         height: auto;
         display: block;
         object-fit: contain;
       }
     </style>
-    <!-- Embedded Self-Contained omggif Decoder (Zero External CDN Dependency) -->
-    <script>
-      (function(root) {
-        // omggif v1.0.10 bundled inline
-        function GifReader(buf) {
-          var p = 0;
-          if (buf[p++] !== 0x47 || buf[p++] !== 0x49 || buf[p++] !== 0x46 ||
-              buf[p++] !== 0x38 || (buf[p++] !== 0x37 && buf[p-1] !== 0x39) ||
-              buf[p++] !== 0x61) {
-            throw new Error("Invalid GIF file format");
-          }
-          this.buf = buf;
-          this.width = buf[p++] | (buf[p++] << 8);
-          this.height = buf[p++] | (buf[p++] << 8);
-          var pf0 = buf[p++];
-          this.globalPaletteOffset = null;
-          this.globalPaletteSize = null;
-          if (pf0 & 0x80) {
-            this.globalPaletteOffset = p;
-            this.globalPaletteSize = 1 << ((pf0 & 0x07) + 1);
-            p += this.globalPaletteSize * 3;
-          }
-          this.loopCount = null;
-          this.frames = [];
-          p += 2; // bg index & aspect ratio
-          while (p < buf.length) {
-            var blockId = buf[p++];
-            if (blockId === 0x21) {
-              var extId = buf[p++];
-              if (extId === 0xF9) {
-                var blockSize = buf[p++];
-                var gceFlags = buf[p++];
-                var delay = buf[p++] | (buf[p++] << 8);
-                var transIdx = buf[p++];
-                p++; // block terminator
-                this._gce = {
-                  disposal: (gceFlags >> 2) & 0x07,
-                  delay: delay,
-                  transIndex: (gceFlags & 0x01) ? transIdx : null
-                };
-              } else if (extId === 0xFF) {
-                var appBlockSize = buf[p++];
-                var appStr = "";
-                for (var i = 0; i < appBlockSize; i++) appStr += String.fromCharCode(buf[p++]);
-                if (appStr === "NETSCAPE2.0" || appStr === "ANIMEXTS1.0") {
-                  p++; // sub-block length (3)
-                  p++; // 1
-                  this.loopCount = buf[p++] | (buf[p++] << 8);
-                  p++; // sub-block terminator
-                } else {
-                  while (p < buf.length) {
-                    var len = buf[p++];
-                    if (len === 0) break;
-                    p += len;
-                  }
-                }
-              } else {
-                while (p < buf.length) {
-                  var subLen = buf[p++];
-                  if (subLen === 0) break;
-                  p += subLen;
-                }
-              }
-            } else if (blockId === 0x2C) {
-              var x = buf[p++] | (buf[p++] << 8);
-              var y = buf[p++] | (buf[p++] << 8);
-              var w = buf[p++] | (buf[p++] << 8);
-              var h = buf[p++] | (buf[p++] << 8);
-              var flags = buf[p++];
-              var hasLct = (flags & 0x80) !== 0;
-              var lctSize = hasLct ? (1 << ((flags & 0x07) + 1)) : 0;
-              var lctOffset = hasLct ? p : null;
-              p += lctSize * 3;
-              var dataOffset = p;
-              p++; // min code size
-              while (p < buf.length) {
-                var dLen = buf[p++];
-                if (dLen === 0) break;
-                p += dLen;
-              }
-              var gce = this._gce || { disposal: 0, delay: 0, transIndex: null };
-              this._gce = null;
-              this.frames.push({
-                x: x, y: y, width: w, height: h,
-                hasLct: hasLct, lctOffset: lctOffset, lctSize: lctSize,
-                dataOffset: dataOffset, disposal: gce.disposal, delay: gce.delay,
-                transIndex: gce.transIndex
-              });
-            } else if (blockId === 0x3B) {
-              break; // Trailer
-            }
-          }
-        }
-
-        GifReader.prototype.numFrames = function() { return this.frames.length; };
-        GifReader.prototype.frameInfo = function(frameIdx) { return this.frames[frameIdx]; };
-
-        GifReader.prototype.decodeAndBlitFrameRGBA = function(frameIdx, pixels) {
-          var frame = this.frames[frameIdx];
-          var p = frame.dataOffset;
-          var minCodeSize = this.buf[p++];
-          var clearCode = 1 << minCodeSize;
-          var eoiCode = clearCode + 1;
-          var nextCode = eoiCode + 1;
-          var curCodeSize = minCodeSize + 1;
-          var codeMask = (1 << curCodeSize) - 1;
-
-          var paletteOffset = frame.hasLct ? frame.lctOffset : this.globalPaletteOffset;
-          var transIndex = frame.transIndex;
-          var buf = this.buf;
-
-          var stack = new Uint16Array(4096);
-          var suffix = new Uint8Array(4096);
-          var prefix = new Uint16Array(4096);
-
-          for (var i = 0; i < clearCode; i++) suffix[i] = i;
-
-          var subBlockLen = buf[p++];
-          var subBlockEnd = p + subBlockLen;
-          var bitBuf = 0, bitLen = 0;
-          var top = 0, prevCode = null;
-
-          var x = frame.x, y = frame.y;
-          var fw = frame.width, fh = frame.height;
-          var canvasWidth = this.width;
-
-          while (true) {
-            while (bitLen < curCodeSize) {
-              if (p >= subBlockEnd) {
-                if (subBlockLen === 0) break;
-                subBlockLen = buf[p++];
-                subBlockEnd = p + subBlockLen;
-                if (subBlockLen === 0) break;
-              }
-              bitBuf |= (buf[p++] << bitLen);
-              bitLen += 8;
-            }
-            if (bitLen < curCodeSize) break;
-
-            var code = bitBuf & codeMask;
-            bitBuf >>= curCodeSize;
-            bitLen -= curCodeSize;
-
-            if (code === clearCode) {
-              curCodeSize = minCodeSize + 1;
-              codeMask = (1 << curCodeSize) - 1;
-              nextCode = eoiCode + 1;
-              prevCode = null;
-              continue;
-            }
-            if (code === eoiCode) break;
-
-            var inCode = code;
-            if (code >= nextCode) {
-              stack[top++] = prevCode === null ? 0 : prevCode;
-              code = prevCode;
-            }
-
-            while (code >= clearCode) {
-              stack[top++] = suffix[code];
-              code = prefix[code];
-            }
-            stack[top++] = code;
-
-            if (prevCode !== null && nextCode < 4096) {
-              prefix[nextCode] = prevCode;
-              suffix[nextCode] = code;
-              nextCode++;
-              if ((nextCode & codeMask) === 0 && nextCode < 4096) {
-                curCodeSize++;
-                codeMask = (1 << curCodeSize) - 1;
-              }
-            }
-            prevCode = inCode;
-
-            while (top > 0) {
-              var idx = stack[--top];
-              if (idx !== transIndex && paletteOffset !== null) {
-                var palIdx = paletteOffset + idx * 3;
-                var pxIdx = ((y * canvasWidth) + x) * 4;
-                pixels[pxIdx]   = buf[palIdx];
-                pixels[pxIdx + 1] = buf[palIdx + 1];
-                pixels[pxIdx + 2] = buf[palIdx + 2];
-                pixels[pxIdx + 3] = 255;
-              }
-              x++;
-              if (x >= frame.x + fw) {
-                x = frame.x;
-                y++;
-                if (y >= frame.y + fh) break;
-              }
-            }
-          }
-        };
-
-        root.omggif = { GifReader: GifReader };
-      })(typeof window !== 'undefined' ? window : this);
-    </script>
-    <!-- Lucide Icons Library with graceful fallback handling -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/umd/lucide.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
   </head>
-  <body class="h-full flex flex-col justify-between overflow-x-hidden bg-slate-950 text-slate-100">
+  <body class="h-full flex flex-col justify-between overflow-x-hidden">
 
     <!-- MAIN CONFIGURATION VIEW (Non-Fullscreen Hub) -->
     <main id="configView" class="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 lg:p-8 relative">
@@ -268,29 +68,12 @@
             <h1 class="text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
               Tiled GIF Player
             </h1>
-            <p class="text-xs text-slate-400">Tile GIFs into a full-screen repeating pattern grid with BPM sync</p>
+            <p class="text-xs text-slate-400">Tile GIFs into a full-screen repeating pattern grid</p>
           </div>
         </div>
 
         <!-- Input Form -->
         <form id="gifForm" onsubmit="event.preventDefault(); launchFullscreen();" class="space-y-4">
-          
-          <!-- Master Tap Tempo Sync Controller (Top of List) -->
-          <div class="bg-slate-950/80 border border-slate-800 p-3 rounded-2xl flex items-center justify-between">
-            <div>
-              <span class="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Master BPM / Tap Sync</span>
-              <span id="globalBpmDisplay" class="text-xs font-mono text-indigo-400">1.00s (60 BPM)</span>
-            </div>
-            <button 
-              type="button" 
-              id="masterTapBtn"
-              onclick="handleTapTempo(event)" 
-              class="px-4 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition"
-            >
-              TAP TEMPO
-            </button>
-          </div>
-
           <div>
             <div class="flex items-center justify-between mb-2">
               <label class="block text-xs font-semibold uppercase tracking-wider text-slate-400">
@@ -306,13 +89,13 @@
               </button>
             </div>
 
-            <!-- List of GIF items -->
-            <div id="gifListContainer" class="space-y-2.5 max-h-52 overflow-y-auto pr-1">
+            <!-- List of GIF URLs -->
+            <div id="gifListContainer" class="space-y-2 max-h-48 overflow-y-auto pr-1">
               <!-- Rendered via JS -->
             </div>
           </div>
 
-          <!-- Compact Preview Card -->
+          <!-- Compact Preview Card (Visually integrated below input line) -->
           <div class="pt-1">
             <div 
               id="previewContainer" 
@@ -446,7 +229,610 @@
                 >
               </div>
 
-              <!-- Mode 3: Color List Controls -->
+              <!-- Mode 3: Color List & Tap Tempo Controls -->
               <div id="bgConfigList" class="hidden space-y-3 bg-slate-950 p-3 border border-slate-800 rounded-2xl">
                 <div class="flex items-center justify-between">
-                  <label
+                  <label class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Palette Colors</label>
+                  <button 
+                    type="button" 
+                    onclick="addPaletteColor()" 
+                    class="inline-flex items-center space-x-1 px-2 py-0.5 text-[11px] font-semibold text-indigo-400 hover:text-white bg-indigo-500/10 hover:bg-indigo-600 rounded-lg transition"
+                  >
+                    <i data-lucide="plus" class="w-3 h-3"></i>
+                    <span>Add Color</span>
+                  </button>
+                </div>
+
+                <!-- Palette Colors List -->
+                <div id="paletteListContainer" class="flex flex-wrap gap-2 max-h-24 overflow-y-auto p-1">
+                  <!-- Rendered via JS -->
+                </div>
+
+                <!-- Interval & DJ Tap Button Controls -->
+                <div class="flex items-center space-x-3 pt-1 border-t border-slate-800/60">
+                  <div class="flex-1">
+                    <span class="block text-[10px] text-slate-400 uppercase tracking-wider">Interval</span>
+                    <span id="intervalDisplay" class="text-xs font-mono text-indigo-400">1.00s (60 BPM)</span>
+                  </div>
+                  <!-- DJ Style Tap Tempo Button -->
+                  <button 
+                    type="button" 
+                    id="tapTempoBtn"
+                    onclick="handleTapTempo(event)" 
+                    class="px-4 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-500/20 active:scale-95 transition"
+                  >
+                    TAP TEMPO
+                  </button>
+                </div>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- Launch Button -->
+          <button 
+            type="submit" 
+            class="w-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 hover:opacity-95 text-white font-semibold py-4 rounded-2xl transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg shadow-indigo-500/25 active:scale-[0.99]"
+          >
+            <i data-lucide="expand" class="w-5 h-5"></i>
+            <span>Launch Tiled Fullscreen View</span>
+          </button>
+        </form>
+
+      </div>
+    </main>
+
+    <!-- FULLSCREEN DISPLAY CONTAINER -->
+    <div 
+      id="fullscreenContainer" 
+      class="fixed inset-0 w-full h-full bg-black z-50 hidden select-none overflow-y-auto"
+    >
+      <!-- Dynamic Tiled Grid Layer -->
+      <div id="gridDisplayContainer"></div>
+
+      <!-- Floating HUD Overlay Controls -->
+      <div 
+        id="controlsOverlay" 
+        class="controls-overlay absolute top-6 right-6 flex items-center space-x-3 bg-slate-900/80 backdrop-blur-md border border-slate-700/50 p-2 rounded-2xl shadow-2xl z-50"
+      >
+        <!-- Exit Fullscreen Button -->
+        <button 
+          type="button" 
+          onclick="exitFullscreen()" 
+          title="Exit Fullscreen View (Esc)"
+          class="p-2.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-xl transition flex items-center space-x-2 text-xs font-medium shadow-md"
+        >
+          <i data-lucide="x" class="w-4 h-4"></i>
+          <span>Exit</span>
+        </button>
+      </div>
+
+      <!-- Quick Tooltip Guide -->
+      <div 
+        id="hintOverlay" 
+        class="controls-overlay absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md text-slate-300 border border-slate-700/50 px-4 py-2 rounded-full text-xs font-medium shadow-lg pointer-events-none flex items-center space-x-2 z-50"
+      >
+        <i data-lucide="info" class="w-3.5 h-3.5 text-indigo-400"></i>
+        <span>Press <kbd class="px-1.5 py-0.5 bg-slate-800 rounded border border-slate-700 text-white font-mono text-[10px]">ESC</kbd> or double-click to exit • Tap anywhere to set BPM interval</span>
+      </div>
+    </div>
+
+    <script>
+      // State variables
+      let sizingMode = 'pixels'; // 'pixels' or 'repeats'
+      let pixelSize = 200;
+      let repeatCount = 5;
+      let computedTileSize = 200;
+      let idleTimer = null;
+      const IDLE_TIMEOUT = 3000;
+
+      // Background Modes: 'static', 'rainbow', 'list'
+      let bgMode = 'static';
+      let staticBgColor = "#000000";
+      let rainbowSpeedSec = 5;
+      
+      // Color list & tap tempo state
+      let colorPalette = ["#ff0055", "#00e5ff", "#7600ff", "#ffb700", "#00ff66"];
+      let paletteIndex = 0;
+      let colorIntervalMs = 1000; // 1 second default
+      let bgIntervalTimer = null;
+      let rainbowAnimationId = null;
+      let tapTimestamps = [];
+
+      // GIF URL List state
+      let gifUrls = ["https://media.tenor.com/390VTlJCoWYAAAAC/tenor.gif"];
+
+      // Initialize Lucide Icons & Initial View
+      window.onload = () => {
+        renderGifInputs();
+        renderPaletteInputs();
+        lucide.createIcons();
+        updatePreview();
+        startBgModeLoop();
+      };
+
+      // Dynamic Input List Management
+      function renderGifInputs() {
+        const container = document.getElementById('gifListContainer');
+        container.innerHTML = '';
+
+        gifUrls.forEach((url, index) => {
+          const item = document.createElement('div');
+          item.className = "flex items-center space-x-2";
+          
+          const wrapper = document.createElement('div');
+          wrapper.className = "relative flex-1";
+
+          const input = document.createElement('input');
+          input.type = "url";
+          input.placeholder = "Enter GIF URL (or leave blank for solid tile)";
+          input.value = url;
+          input.className = "w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-xl py-2 pl-3 pr-9 text-slate-100 placeholder-slate-500 transition-all outline-none text-xs";
+          
+          input.addEventListener('input', (e) => {
+            gifUrls[index] = e.target.value.trim();
+            updatePreview();
+            renderFullscreenGridIfActive();
+          });
+
+          const pasteBtn = document.createElement('button');
+          pasteBtn.type = "button";
+          pasteBtn.title = "Paste from clipboard";
+          pasteBtn.className = "absolute right-1.5 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-200 rounded-lg transition";
+          pasteBtn.innerHTML = `<i data-lucide="clipboard" class="w-3.5 h-3.5"></i>`;
+          pasteBtn.onclick = () => pasteClipboardTo(index);
+
+          wrapper.appendChild(input);
+          wrapper.appendChild(pasteBtn);
+          item.appendChild(wrapper);
+
+          if (gifUrls.length > 1) {
+            const removeBtn = document.createElement('button');
+            removeBtn.type = "button";
+            removeBtn.title = "Remove GIF slot";
+            removeBtn.className = "p-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 rounded-xl transition";
+            removeBtn.innerHTML = `<i data-lucide="trash-2" class="w-4 h-4"></i>`;
+            removeBtn.onclick = () => removeGifInput(index);
+            item.appendChild(removeBtn);
+          }
+
+          container.appendChild(item);
+        });
+
+        lucide.createIcons();
+      }
+
+      function addGifInput() {
+        gifUrls.push('');
+        renderGifInputs();
+        updatePreview();
+        renderFullscreenGridIfActive();
+      }
+
+      function removeGifInput(index) {
+        if (gifUrls.length > 1) {
+          gifUrls.splice(index, 1);
+          renderGifInputs();
+          updatePreview();
+          renderFullscreenGridIfActive();
+        }
+      }
+
+      async function pasteClipboardTo(index) {
+        try {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            gifUrls[index] = text.trim();
+            renderGifInputs();
+            updatePreview();
+            renderFullscreenGridIfActive();
+          }
+        } catch (err) {
+          console.warn('Clipboard read error:', err);
+        }
+      }
+
+      // Background Modes logic
+      function setBgMode(mode) {
+        bgMode = mode;
+        const tabStatic = document.getElementById('bgTabStatic');
+        const tabRainbow = document.getElementById('bgTabRainbow');
+        const tabList = document.getElementById('bgTabList');
+        const cfgStatic = document.getElementById('bgConfigStatic');
+        const cfgRainbow = document.getElementById('bgConfigRainbow');
+        const cfgList = document.getElementById('bgConfigList');
+
+        const activeClass = "py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-white bg-indigo-600 shadow-sm";
+        const inactiveClass = "py-1.5 px-2 text-[11px] font-medium rounded-xl transition-all text-slate-400 hover:text-white";
+
+        tabStatic.className = mode === 'static' ? activeClass : inactiveClass;
+        tabRainbow.className = mode === 'rainbow' ? activeClass : inactiveClass;
+        tabList.className = mode === 'list' ? activeClass : inactiveClass;
+
+        cfgStatic.classList.toggle('hidden', mode !== 'static');
+        cfgRainbow.classList.toggle('hidden', mode !== 'rainbow');
+        cfgList.classList.toggle('hidden', mode !== 'list');
+
+        startBgModeLoop();
+      }
+
+      function updateRainbowSpeed(val) {
+        rainbowSpeedSec = parseFloat(val);
+        document.getElementById('rainbowSpeedVal').textContent = `${val}s`;
+      }
+
+      function renderPaletteInputs() {
+        const container = document.getElementById('paletteListContainer');
+        container.innerHTML = '';
+
+        colorPalette.forEach((color, index) => {
+          const item = document.createElement('div');
+          item.className = "flex items-center space-x-1 bg-slate-900 border border-slate-800 p-1 rounded-xl";
+
+          const input = document.createElement('input');
+          input.type = "color";
+          input.value = color;
+          input.className = "w-6 h-6 rounded-lg bg-transparent cursor-pointer border-0";
+          input.onchange = (e) => {
+            colorPalette[index] = e.target.value;
+            applyActiveBgColor(colorPalette[paletteIndex % colorPalette.length]);
+          };
+
+          item.appendChild(input);
+
+          if (colorPalette.length > 1) {
+            const delBtn = document.createElement('button');
+            delBtn.type = "button";
+            delBtn.className = "text-slate-500 hover:text-rose-400 p-0.5 rounded transition";
+            delBtn.innerHTML = `<i data-lucide="x" class="w-3 h-3"></i>`;
+            delBtn.onclick = () => {
+              colorPalette.splice(index, 1);
+              renderPaletteInputs();
+            };
+            item.appendChild(delBtn);
+          }
+
+          container.appendChild(item);
+        });
+
+        lucide.createIcons();
+      }
+
+      function addPaletteColor() {
+        const randomColor = '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0');
+        colorPalette.push(randomColor);
+        renderPaletteInputs();
+      }
+
+      // Tap Tempo Handler (DJ / Lighting Controller style)
+      function handleTapTempo(e) {
+        if (e) e.stopPropagation();
+        const now = Date.now();
+        tapTimestamps.push(now);
+
+        // Keep only taps within the last 3 seconds
+        tapTimestamps = tapTimestamps.filter(t => now - t < 3000);
+
+        if (tapTimestamps.length >= 2) {
+          let intervals = [];
+          for (let i = 1; i < tapTimestamps.length; i++) {
+            intervals.push(tapTimestamps[i] - tapTimestamps[i - 1]);
+          }
+          const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+          colorIntervalMs = Math.max(100, Math.min(5000, avgInterval));
+          updateIntervalDisplay();
+          startBgModeLoop();
+        }
+
+        // Advance step immediately on tap
+        if (bgMode === 'list' && colorPalette.length > 0) {
+          paletteIndex = (paletteIndex + 1) % colorPalette.length;
+          applyActiveBgColor(colorPalette[paletteIndex]);
+        }
+      }
+
+      function updateIntervalDisplay() {
+        const seconds = (colorIntervalMs / 1000).toFixed(2);
+        const bpm = Math.round(60000 / colorIntervalMs);
+        document.getElementById('intervalDisplay').textContent = `${seconds}s (${bpm} BPM)`;
+      }
+
+      function applyActiveBgColor(color) {
+        const previewContainer = document.getElementById('previewContainer');
+        const fullscreenContainer = document.getElementById('fullscreenContainer');
+
+        if (previewContainer) previewContainer.style.backgroundColor = color;
+        if (fullscreenContainer) fullscreenContainer.style.backgroundColor = color;
+
+        // Apply to empty tile backgrounds
+        const tiles = document.querySelectorAll('.gif-tile-item');
+        tiles.forEach(tile => tile.style.backgroundColor = color);
+      }
+
+      function startBgModeLoop() {
+        clearInterval(bgIntervalTimer);
+        cancelAnimationFrame(rainbowAnimationId);
+
+        if (bgMode === 'static') {
+          applyActiveBgColor(staticBgColor);
+        } else if (bgMode === 'rainbow') {
+          let startTime = performance.now();
+          function animateRainbow(now) {
+            let elapsed = (now - startTime) / 1000;
+            let hue = (elapsed / rainbowSpeedSec * 360) % 360;
+            let hslColor = `hsl(${hue}, 100%, 50%)`;
+            applyActiveBgColor(hslColor);
+            rainbowAnimationId = requestAnimationFrame(animateRainbow);
+          }
+          rainbowAnimationId = requestAnimationFrame(animateRainbow);
+        } else if (bgMode === 'list') {
+          if (colorPalette.length > 0) {
+            applyActiveBgColor(colorPalette[paletteIndex % colorPalette.length]);
+          }
+          bgIntervalTimer = setInterval(() => {
+            if (colorPalette.length > 0) {
+              paletteIndex = (paletteIndex + 1) % colorPalette.length;
+              applyActiveBgColor(colorPalette[paletteIndex]);
+            }
+          }, colorIntervalMs);
+        }
+      }
+
+      // Toggle sizing mode between Fixed Pixels and Horizontal Repeats
+      function setSizingMode(mode) {
+        sizingMode = mode;
+        const pixelsBtn = document.getElementById('modePixelsBtn');
+        const repeatsBtn = document.getElementById('modeRepeatsBtn');
+        const slider = document.getElementById('sizeSlider');
+        const label = document.getElementById('sliderLabel');
+
+        if (mode === 'pixels') {
+          pixelsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-white bg-indigo-600 shadow-sm";
+          repeatsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-slate-400 hover:text-white";
+          label.textContent = "Tile Size:";
+          slider.min = "50";
+          slider.max = "600";
+          slider.step = "10";
+          slider.value = pixelSize;
+          updateDisplayValue(pixelSize);
+        } else {
+          repeatsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-white bg-indigo-600 shadow-sm";
+          pixelsBtn.className = "py-2 px-3 text-xs font-medium rounded-xl transition-all duration-150 text-slate-400 hover:text-white";
+          label.textContent = "Horizontal Repeats:";
+          slider.min = "1";
+          slider.max = "30";
+          slider.step = "1";
+          slider.value = repeatCount;
+          updateDisplayValue(repeatCount);
+        }
+      }
+
+      function handleSliderInput(val) {
+        if (sizingMode === 'pixels') {
+          pixelSize = parseInt(val, 10);
+        } else {
+          repeatCount = parseInt(val, 10);
+        }
+        updateDisplayValue(val);
+      }
+
+      function getActiveTileSize() {
+        if (sizingMode === 'pixels') {
+          return pixelSize;
+        } else {
+          return window.innerWidth / repeatCount;
+        }
+      }
+
+      function updateDisplayValue(val) {
+        computedTileSize = getActiveTileSize();
+        if (sizingMode === 'pixels') {
+          document.getElementById('tileSizeVal').textContent = `${val}px`;
+        } else {
+          document.getElementById('tileSizeVal').textContent = `${val} tiles (${Math.round(computedTileSize)}px each)`;
+        }
+        updatePreview();
+        renderFullscreenGridIfActive();
+      }
+
+      // Sync custom static background color
+      function updateBgColor(color) {
+        staticBgColor = color;
+        document.getElementById('bgColorHex').textContent = color;
+        if (bgMode === 'static') applyActiveBgColor(color);
+      }
+
+      // Update preview grid (Allow empty inputs to show solid background blocks)
+      function updatePreview() {
+        const previewBg = document.getElementById('previewTileBg');
+        if (!previewBg) return;
+
+        previewBg.innerHTML = '';
+        if (gifUrls.length === 0) return;
+
+        let previewTileWidth;
+        if (sizingMode === 'pixels') {
+          previewTileWidth = Math.max(25, pixelSize * 0.25);
+        } else {
+          const previewContainerWidth = document.getElementById('previewContainer')?.offsetWidth || 500;
+          previewTileWidth = Math.max(15, previewContainerWidth / repeatCount);
+        }
+
+        for (let i = 0; i < 24; i++) {
+          const url = gifUrls[i % gifUrls.length];
+          const tile = document.createElement('div');
+          tile.className = "gif-tile-item";
+          tile.style.width = `${previewTileWidth}px`;
+
+          if (url && url.trim() !== '') {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = "";
+            tile.appendChild(img);
+          }
+
+          previewBg.appendChild(tile);
+        }
+      }
+
+      // Render Fullscreen Grid Items (Renders empty tile slots as solid color blocks)
+      function renderFullscreenGrid() {
+        const gridContainer = document.getElementById('gridDisplayContainer');
+        gridContainer.innerHTML = '';
+
+        if (gifUrls.length === 0) return;
+
+        computedTileSize = getActiveTileSize();
+        
+        const rowsNeeded = Math.ceil(window.innerHeight / (computedTileSize * 0.75)) + 4;
+        const colsPerRow = sizingMode === 'repeats' ? repeatCount : Math.ceil(window.innerWidth / computedTileSize) + 1;
+        const totalTiles = rowsNeeded * colsPerRow;
+
+        for (let i = 0; i < totalTiles; i++) {
+          const url = gifUrls[i % gifUrls.length];
+          const tile = document.createElement('div');
+          tile.className = "gif-tile-item";
+          tile.style.width = `${computedTileSize}px`;
+
+          if (url && url.trim() !== '') {
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = "";
+            tile.appendChild(img);
+          }
+
+          gridContainer.appendChild(tile);
+        }
+      }
+
+      function renderFullscreenGridIfActive() {
+        const container = document.getElementById('fullscreenContainer');
+        if (!container.classList.contains('hidden')) {
+          renderFullscreenGrid();
+        }
+      }
+
+      window.addEventListener('resize', () => {
+        if (sizingMode === 'repeats') {
+          updateDisplayValue(repeatCount);
+        } else {
+          updatePreview();
+        }
+        renderFullscreenGridIfActive();
+      });
+
+      // Launch Fullscreen mode
+      async function launchFullscreen() {
+        if (gifUrls.length === 0) return;
+
+        const container = document.getElementById('fullscreenContainer');
+        renderFullscreenGrid();
+        container.classList.remove('hidden');
+
+        try {
+          if (container.requestFullscreen) {
+            await container.requestFullscreen();
+          } else if (container.webkitRequestFullscreen) {
+            await container.webkitRequestFullscreen();
+          } else if (container.msRequestFullscreen) {
+            await container.msRequestFullscreen();
+          }
+        } catch (e) {
+          console.warn('Native Fullscreen denied or unsupported.', e);
+        }
+
+        setTimeout(() => {
+          renderFullscreenGrid();
+        }, 100);
+
+        startIdleListener();
+      }
+
+      // Exit Fullscreen Mode
+      function exitFullscreen() {
+        const container = document.getElementById('fullscreenContainer');
+        container.classList.add('hidden');
+        document.getElementById('gridDisplayContainer').innerHTML = '';
+
+        stopIdleListener();
+
+        try {
+          const fullscreenEl = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+          
+          if (fullscreenEl && document.fullscreenEnabled !== false) {
+            if (document.exitFullscreen) {
+              document.exitFullscreen().catch(err => {
+                console.warn('Unhandled exitFullscreen promise rejection:', err);
+              });
+            } else if (document.webkitExitFullscreen) {
+              document.webkitExitFullscreen();
+            } else if (document.msExitFullscreen) {
+              document.msExitFullscreen();
+            }
+          }
+        } catch (err) {
+          console.warn('Unable to exit native fullscreen:', err);
+        }
+      }
+
+      document.addEventListener('fullscreenchange', handleFullscreenChange);
+      document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+      function handleFullscreenChange() {
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+          const container = document.getElementById('fullscreenContainer');
+          if (!container.classList.contains('hidden')) {
+            exitFullscreen();
+          }
+        }
+      }
+
+      // Double Click / Tap Tempo in Fullscreen Mode
+      let lastFullscreenClick = 0;
+      document.getElementById('fullscreenContainer').addEventListener('click', (e) => {
+        if (e.target.closest('#controlsOverlay')) return;
+        
+        const now = Date.now();
+        // Double click detection to exit
+        if (now - lastFullscreenClick < 300) {
+          exitFullscreen();
+          return;
+        }
+        lastFullscreenClick = now;
+
+        // Single click triggers tap tempo if in 'list' mode or updates tap state
+        if (bgMode === 'list') {
+          handleTapTempo(null);
+        }
+      });
+
+      function resetIdleTimer() {
+        const overlays = document.querySelectorAll('.controls-overlay');
+        overlays.forEach(el => el.classList.remove('idle-hidden'));
+
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+          overlays.forEach(el => el.classList.add('idle-hidden'));
+        }, IDLE_TIMEOUT);
+      }
+
+      function startIdleListener() {
+        const container = document.getElementById('fullscreenContainer');
+        container.addEventListener('mousemove', resetIdleTimer);
+        container.addEventListener('touchstart', resetIdleTimer);
+        resetIdleTimer();
+      }
+
+      function stopIdleListener() {
+        const container = document.getElementById('fullscreenContainer');
+        container.removeEventListener('mousemove', resetIdleTimer);
+        container.removeEventListener('touchstart', resetIdleTimer);
+        clearTimeout(idleTimer);
+        
+        const overlays = document.querySelectorAll('.controls-overlay');
+        overlays.forEach(el => el.classList.remove('idle-hidden'));
+      }
+    </script>
+  </body>
+</html>
